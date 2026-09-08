@@ -1,0 +1,52 @@
+........................................................................ [ 82%]
+...............                                                          [100%]
+=============================== warnings summary ===============================
+../parser-venv/lib/python3.12/site-packages/starlette/testclient.py:53
+  /workspace/scratch/cd212e8efe81/parser-venv/lib/python3.12/site-packages/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.13-final-0 _______________
+
+Name                                    Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------
+app/__init__.py                             0      0   100%
+app/api/__init__.py                         0      0   100%
+app/api/routes.py                          71      7    90%   28-30, 42, 53, 62, 79
+app/core/__init__.py                        0      0   100%
+app/core/config.py                         26      0   100%
+app/core/exceptions.py                     11      0   100%
+app/core/logging.py                         5      0   100%
+app/extraction/__init__.py                  0      0   100%
+app/extraction/hyperlink_extractor.py      11      0   100%
+app/extraction/layout_engine.py            56      2    96%   37, 58
+app/extraction/ocr_engine.py               37      1    97%   24
+app/extraction/text_extractor.py           54      4    93%   54, 68, 73, 77
+app/ingestion/__init__.py                   0      0   100%
+app/ingestion/pdf_detector.py              11      1    91%   11
+app/ingestion/validator.py                 32      3    91%   26, 28, 33
+app/intelligence/__init__.py                0      0   100%
+app/intelligence/confidence.py             14      1    93%   22
+app/intelligence/llm_fallback.py           55      7    87%   33-34, 72, 80, 89-92
+app/intelligence/provenance.py             12      1    92%   18
+app/main.py                                41      2    95%   28, 43
+app/normalization/__init__.py               0      0   100%
+app/normalization/date_normalizer.py       55      4    93%   37-38, 60, 67
+app/normalization/phone_normalizer.py       9      2    78%   9-10
+app/normalization/url_normalizer.py        19      0   100%
+app/parsing/__init__.py                     0      0   100%
+app/parsing/education_parser.py            19      0   100%
+app/parsing/entity_extractor.py            71      7    90%   78, 80-85, 113-114
+app/parsing/experience_parser.py           49      5    90%   19-23
+app/parsing/language_detector.py           23      2    91%   29, 32
+app/parsing/section_classifier.py          40      1    98%   103
+app/parsing/skill_extractor.py             19      0   100%
+app/schemas/__init__.py                     0      0   100%
+app/schemas/resume.py                     137      1    99%   10
+app/services/__init__.py                    0      0   100%
+app/services/resume_parser.py              46      4    91%   69, 82-88
+app/services/worker.py                     21     21     0%   1-28
+---------------------------------------------------------------------
+TOTAL                                     944     76    92%
+87 passed, 1 warning in 5.44s

@@ -1,0 +1,54 @@
+import re
+
+from app.extraction.layout_engine import LayoutBlock
+from app.intelligence.provenance import provenance
+from app.normalization.date_normalizer import RANGE_PATTERN, DateNormalizer
+from app.parsing.experience_parser import group_entries
+from app.schemas.resume import Education
+
+
+class EducationParser:
+    def parse(self, blocks: list[LayoutBlock]) -> list[Education]:
+        result = []
+        for group in group_entries(blocks):
+            text = "\n".join(b.text for b in group)
+            dated = RANGE_PATTERN.search(text)
+            start, end, _ = DateNormalizer.normalize_span(dated[0]) if dated else (None, None, False)
+            parts = [
+                p.strip(" -–—") for p in re.split(r"\n|\|", RANGE_PATTERN.sub("", text)) if p.strip(" -–—")
+            ]
+            institution = next(
+                (
+                    p
+                    for p in parts
+                    if re.search(
+                        r"universit|university|college|institute|məktəb|университет|институт|академ", p, re.I
+                    )
+                ),
+                None,
+            )
+            degree = next(
+                (
+                    p
+                    for p in parts
+                    if re.search(
+                        r"bachelor|master|ph\.?d|b\.?sc|m\.?sc|bakalavr|magistr|lisans|бакалавр|магистр",
+                        p,
+                        re.I,
+                    )
+                ),
+                None,
+            )
+            gpa = re.search(r"\bGPA\s*:?\s*([\d.,]+(?:\s*/\s*[\d.,]+)?)", text, re.I)
+            result.append(
+                Education(
+                    institution=institution,
+                    degree=degree,
+                    start_date=start,
+                    end_date=end,
+                    graduation_date=end,
+                    gpa=gpa[1] if gpa else None,
+                    provenance=provenance(group[0], 0.7),
+                )
+            )
+        return result

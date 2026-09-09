@@ -14,9 +14,25 @@ from starlette.datastructures import UploadFile
 
 from app.core.config import settings
 from app.core.logging import logger
+from app.schemas.dashboard import DashboardResponse
 from app.schemas.resume import ResumeParsedSchema
 
 router = APIRouter()
+dashboard_router = APIRouter()
+UPLOAD_SCHEMA = {
+    "requestBody": {
+        "required": True,
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "required": ["file"],
+                    "properties": {"file": {"type": "string", "format": "binary"}},
+                }
+            }
+        },
+    }
+}
 
 
 async def stop_worker(process: asyncio.subprocess.Process) -> None:
@@ -31,8 +47,19 @@ async def stop_worker(process: asyncio.subprocess.Process) -> None:
         await process.wait()
 
 
-@router.post("/resume/parse", response_model=ResumeParsedSchema)
+@router.post("/resume/parse", response_model=ResumeParsedSchema, openapi_extra=UPLOAD_SCHEMA)
 async def parse_resume_endpoint(request: Request) -> ResumeParsedSchema:
+    return await process_document(request, dashboard=False)
+
+
+@dashboard_router.post("/api/extract-cv", response_model=DashboardResponse, openapi_extra=UPLOAD_SCHEMA)
+async def extract_cv_endpoint(request: Request) -> DashboardResponse:
+    return await process_document(request, dashboard=True)
+
+
+async def process_document(
+    request: Request, dashboard: bool = False
+) -> ResumeParsedSchema | DashboardResponse:
     if settings.API_KEY and not hmac.compare_digest(
         request.headers.get("x-api-key", ""), settings.API_KEY.get_secret_value()
     ):
@@ -68,6 +95,7 @@ async def parse_resume_endpoint(request: Request) -> ResumeParsedSchema:
                     str(source),
                     str(destination),
                     file.filename,
+                    "dashboard" if dashboard else "native",
                     start_new_session=os.name == "posix",
                     env={**os.environ, "TMPDIR": directory, "TEMP": directory, "TMP": directory},
                     stdout=asyncio.subprocess.DEVNULL,
@@ -83,14 +111,16 @@ async def parse_resume_endpoint(request: Request) -> ResumeParsedSchema:
                         raise HTTPException(
                             error["status"], {"code": error["code"], "message": error["message"]}
                         )
-                    result = ResumeParsedSchema.model_validate(payload["result"])
+                    result = (DashboardResponse if dashboard else ResumeParsedSchema).model_validate(
+                        payload["result"]
+                    )
                 except TimeoutError as exc:
                     raise HTTPException(504, "Document processing timed out.") from exc
                 finally:
                     await stop_worker(process)
                 logger.bind(
                     request_id=request_id,
-                    pages=result.document.page_count,
+                    pages=result.metadata.pages if dashboard else result.document.page_count,
                     elapsed_ms=round((time.perf_counter() - start) * 1000),
                 ).info("parse_complete")
                 return result
@@ -99,3 +129,12 @@ async def parse_resume_endpoint(request: Request) -> ResumeParsedSchema:
 @router.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "healthy", "version": settings.VERSION}
+
+
+@dashboard_router.get("/api/config")
+async def dashboard_config() -> dict[str, bool | int]:
+    return {
+        "llmEnabled": settings.USE_LLM_FALLBACK,
+        "apiKeyRequired": bool(settings.API_KEY),
+        "maxUploadBytes": settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024,
+    }

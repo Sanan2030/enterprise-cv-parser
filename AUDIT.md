@@ -37,3 +37,8 @@ Confidence is not calibrated against human labels. Lingua secondary-language rep
 Temporary-directory deletion runs on ordinary errors, worker deadlines, and request cancellation. A host or API process crash can leave directories until OS/container cleanup. Linux worker process-group termination handles Tesseract descendants; Windows native execution kills only the Python process. Production should use the provided Linux container and supervise it.
 
 The initial delivery could not create a GitHub repository because the connector lacked that operation. The user subsequently supplied the repository `Sanan2030/enterprise-cv-parser` and authorized publication there. That initial capability limitation is historical; current publication status is recorded in the repository history.
+
+
+## Dashboard integration
+
+A new single-file frontend and `/api/extract-cv` adapter now expose the parser through editable review cards, PDF.js preview and JSON/CSV/TXT export. The original API remains available. Broad non-credentialed CORS is explicitly enabled per the integration request. Tables are extracted using pdfplumber for native ruled grids; scanned table reconstruction remains limited. The dashboard does not add universal semantic understanding to the underlying parser, and unknown fields remain empty. The privacy display reflects configured external LLM use and notes external CDN assets.

@@ -28,3 +28,12 @@ Coverage is statement coverage measured in the parent pytest process. The worker
 One dependency deprecation warning was emitted by Starlette TestClient about the AnyIO BlockingPortal alias. It did not fail the tests and has not been suppressed.
 
 The full pytest coverage table is in `validation-output.txt`. `constraints.txt` captures the resolved package versions before installing this project; it contains no credentials or local editable project paths. The app sends no candidate data over the network unless its optional LLM fallback is explicitly enabled.
+
+
+## Dashboard integration validation (2026-09-09)
+
+- Python regression suite: **95 passed**, including the original parser tests, real `/api/extract-cv` subprocess requests, multipart CORS preflight, CORS on size-limit errors, native PDF table extraction, missing-field behavior and dashboard/config routes.
+- Frontend JavaScript: syntax checked with Node; **4 Node tests passed** for edited nested JSON/table export, CSV formula neutralization, Unicode/newline/empty-array handling, and comprehensive TXT output.
+- Ruff lint and formatting passed for updated Python sources.
+- Browser rendering, click-through interaction testing and Docker execution were not performed; no claim of visual or container verification is made.
+- Earlier 92% coverage is historical; coverage was not remeasured for this integration.

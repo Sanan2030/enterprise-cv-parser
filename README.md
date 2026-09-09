@@ -11,7 +11,7 @@ cd enterprise-cv-parser
 docker compose up --build -d
 ```
 
-Open [Swagger UI](http://localhost:8000/docs) or [health](http://localhost:8000/api/v1/health).
+Open the [PDF Intelligence Platform](http://localhost:8000/) to upload, preview, edit and export a PDF. [Swagger UI](http://localhost:8000/docs) and [health](http://localhost:8000/api/v1/health) remain available.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/resume/parse \
@@ -22,6 +22,42 @@ docker compose down
 ```
 
 Compose binds only to localhost. It uses a non-root container, a read-only root filesystem, a temporary in-memory directory, and resource limits. Tesseract English, Azerbaijani, Turkish, and Russian packs are installed in the image. No candidate uploads are retained. The Python API uses temporary directories and closes multipart uploads on success and error. Each worker and its Tesseract child use that same per-request temporary directory, so OCR intermediates are also removed after forced worker termination.
+
+## Dashboard and frontend API
+
+`index.html` is a single-file HTML/CSS/Vanilla JavaScript dashboard served at `/` and `/index.html`. It includes Tailwind CSS, FontAwesome and PDF.js via CDNs. No Node build or frontend server is needed. Main styling is embedded so core controls remain usable if the CSS CDN is unavailable. PDF preview requires the PDF.js CDN; its failure does not prevent extraction.
+
+After pulling an update, rebuild your running container:
+
+```bash
+git pull origin main
+docker compose up --build -d
+```
+
+Visit [http://localhost:8000/](http://localhost:8000/). Upload one PDF by button or drag-and-drop. Review the editable fields and tables; export JSON, flattened CSV, or TXT, or copy JSON. Add/remove experience, education, skills, language, certification, project and table entries. Table titles, headers and cells are editable; rows and columns can be added or removed. Dark/light theme is the only value saved to browser storage. Documents, API keys and edits remain in tab memory; export before closing. JSON download initiation clears the unsaved-edit banner, but the browser/user controls whether the file is ultimately saved.
+
+`POST /api/extract-cv` takes the same multipart `file` upload and returns the camelCase dashboard schema. `GET /api/config` exposes only whether LLM fallback/API-key authentication is enabled and the upload limit; it never returns a secret. The original `/api/v1/resume/parse` response remains compatible. Both POST endpoints appear with a file picker in OpenAPI.
+
+```bash
+curl -X POST http://localhost:8000/api/extract-cv \
+  -F 'file=@resume.pdf;type=application/pdf'
+```
+
+The frontend uses the current origin when served by FastAPI. Opening `index.html` directly defaults to `http://localhost:8000`; use Connection settings for a different server or an existing `X-API-Key`. CORS explicitly permits all origins, methods and headers, with credentialed cookies disabled, as requested. API-key enforcement and all existing document limits also apply to the new endpoint.
+
+The dashboard response includes `personalInformation`, `contactInformation`, `professionalInformation`, `experience`, `education`, `skills`, `languages`, `certifications`, `projects`, `summary`, `tables`, and `confidenceScores`. It also includes `metadata` for real page/word/contact counts, extraction method, language, processing time, LLM mode and warnings. Missing string values are empty; unsupported demographic/career details are not inferred. Confidence is converted from existing evidence scores to 0–100 rather than using fixed sample numbers. Manual edits retain the original scores and are marked as manually edited. Unscored fields appear under the Low / unscored filter.
+
+Table extraction runs with pdfplumber inside the same bounded worker as parsing. Native ruled tables are supported, with a 5,000-cell ceiling. The first visible row is retained as data; neutral column labels avoid guessing that it is a header. Scanned tables are not reconstructed into structured cells automatically; they can be reviewed in the PDF preview and entered manually. An optional-table parser failure leaves CV extraction intact with a warning; resource-limit failures still reject the document.
+
+The eight-step indicator shows preparation, dispatch, processing and completion. Backend substeps are marked active together while waiting because the REST API does not emit stage telemetry. Reset/replacement aborts the browser request and ignores stale results; an already-running server process can continue until its own deadline. The privacy badge reports the chosen server and whether external AI is enabled, not a guarantee that CDN scripts or a remote server are offline.
+
+Frontend checks (Node 18+):
+
+```bash
+node --test tests/frontend.test.cjs
+```
+
+These validate JavaScript syntax and export behavior without browser automation. Browser visual/interaction QA has not been performed in this update.
 
 ## Run tests
 

@@ -37,7 +37,8 @@ def adapt_resume(resume: ResumeParsedSchema, tables: list[Table]) -> DashboardRe
 
     def labeled(*labels: str) -> str:
         match = re.search(
-            r"(?im)^(?:" + "|".join(re.escape(label) for label in labels) + r")\s*:\s*([^\n]+)", text
+            r"(?im)(?:^|[|;])\s*(?:" + "|".join(re.escape(label) for label in labels) + r")\s*:\s*([^\n|;]+)",
+            text,
         )
         return match[1].strip() if match else ""
 

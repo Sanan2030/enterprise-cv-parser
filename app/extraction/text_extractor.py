@@ -78,6 +78,7 @@ class PDFTextExtractor:
                 if total_chars > settings.MAX_TEXT_CHARS:
                     raise SecurityException("Extracted text exceeds the character limit.")
                 methods.update(b.method for b in blocks)
+                blocks = DocumentLayoutEngine.join_line_fragments(blocks)
                 all_blocks.extend(DocumentLayoutEngine.sort_reading_order(blocks, page.rect.width))
         if not all_blocks:
             raise InvalidPDFException("No readable text found in PDF.")

@@ -1,4 +1,5 @@
 import re
+from dataclasses import replace
 from functools import lru_cache
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -69,6 +70,27 @@ class EntityExtractor:
         contacts = self.extract_contact_info("\n".join(b.text for b in blocks), links)
         model = nlp_model()
         name = None
+        # Large names can wrap onto two lines. Preserve their combined evidence.
+        header = list(header)
+        for first, second in zip(header[:8], header[1:9]):
+            if (
+                first.page_num == second.page_num
+                and first.font_size >= 16
+                and abs(first.font_size - second.font_size) < 1
+                and abs(first.x0 - second.x0) < 5
+                and 0 < second.y0 - first.y0 <= first.font_size * 1.6
+                and first.text.isalpha()
+                and second.text.isalpha()
+            ):
+                header.insert(
+                    0,
+                    replace(
+                        first,
+                        text=first.text + " " + second.text,
+                        bbox=(first.x0, first.y0, max(first.x1, second.x1), second.y1),
+                    ),
+                )
+                break
         for block in sorted(header[:12], key=lambda b: -b.font_size):
             candidate = block.text.strip()
             if SectionClassifier.classify_block(candidate)[0] or not 2 <= len(candidate.split()) <= 5:
@@ -98,6 +120,14 @@ class EntityExtractor:
             github=contacts["github"],
             website=contacts["website"],
         )
+        if name:
+            parts = name.value.split()
+            personal.first_name = sourced(parts[0], header, name.confidence)
+            personal.last_name = sourced(parts[-1], header, name.confidence)
+        for block in header:
+            match = re.search(r"(?:^|[|;])\s*(?:nationality|vətəndaşlıq)\s*:\s*([^|;]+)", block.text, re.I)
+            if match:
+                personal.nationality = sourced(match[1].strip(), header, 0.9)
         if contacts["phone"]:
             for block in blocks + link_blocks:
                 matches = list(phonenumbers.PhoneNumberMatcher(block.text, settings.DEFAULT_PHONE_REGION))
@@ -117,4 +147,15 @@ class EntityExtractor:
             if match:
                 personal.location = sourced(match[1], header, 0.85)
                 break
+        if personal.location is None:
+            # An unlabeled location immediately below an email/phone line.
+            for previous, block in zip(header, header[1:]):
+                if (
+                    EMAIL_REGEX.search(previous.text)
+                    and len(block.text.split()) <= 6
+                    and re.fullmatch(r"[^\W\d_]+(?:[ ,'-]+[^\W\d_]+)*", block.text)
+                    and not SectionClassifier.classify_block(block.text)[0]
+                ):
+                    personal.location = sourced(block.text, header, 0.65)
+                    break
         return personal

@@ -187,3 +187,12 @@ docker compose up --build -d
 ```
 
 The initial delivery archive includes `history.bundle` for the original local semantic commits. The repository's `main` branch contains the published implementation and publication documentation updates.
+# Layout regression fixes
+
+The parser joins nearby PDF text fragments without crossing bullet columns, keeps
+right-aligned date ranges with their entry headers, and respects full-width section
+boundaries. Wrapped large-font names, pipe-separated personal fields, degree/subject
+pairs, and language proficiency labels on separate lines are supported heuristically.
+Parenthetical skill explanations are not counted as individual skills. Missing CV
+facts remain empty; confidence values are evidence heuristics, not accuracy guarantees.
+Synthetic PDF regression tests cover these layouts without publishing private CVs.

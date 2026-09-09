@@ -1,4 +1,3 @@
-import re
 import time
 from pathlib import PurePath
 
@@ -11,13 +10,13 @@ from app.parsing.education_parser import EducationParser
 from app.parsing.entity_extractor import EntityExtractor
 from app.parsing.experience_parser import ExperienceParser
 from app.parsing.language_detector import DocumentLanguageDetector
+from app.parsing.language_skills import parse_languages
 from app.parsing.section_classifier import SectionClassifier
 from app.parsing.skill_extractor import SkillExtractor
 from app.schemas.resume import (
     Certification,
     DocumentMetadata,
     FieldWithMetadata,
-    LanguageSkill,
     ProfessionalProfile,
     Project,
     QualityControl,
@@ -62,19 +61,7 @@ class ResumeParserService:
             raw_sections={key: [provenance(b) for b in value] for key, value in sections.items() if value},
             quality=QualityControl(warnings=warnings, extraction_method=extraction.method),
         )
-        for block in sections["languages"]:
-            for item in re.split(r"[,;]", block.text):
-                parts = re.split(r"\s*[:–—-]\s*", item.strip(), maxsplit=1)
-                if not parts[0]:
-                    continue
-                level = re.search(r"\b[ABC][12]\b", item, re.I)
-                result.languages.append(
-                    LanguageSkill(
-                        language=parts[0],
-                        proficiency=parts[1] if len(parts) > 1 else None,
-                        cefr_level=level[0].upper() if level else None,
-                    )
-                )
+        result.languages = parse_languages(sections["languages"])
         result.quality = ConfidenceScorer.calculate_quality(result)
         if settings.USE_LLM_FALLBACK and (
             result.quality.overall_confidence < settings.LLM_THRESHOLD or result.quality.missing_sections

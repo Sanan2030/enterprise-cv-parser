@@ -25,7 +25,7 @@ class EducationParser:
                         r"universit|university|college|institute|məktəb|университет|институт|академ", p, re.I
                     )
                 ),
-                None,
+                parts[0] if parts else None,
             )
             degree = next(
                 (
@@ -40,10 +40,16 @@ class EducationParser:
                 None,
             )
             gpa = re.search(r"\bGPA\s*:?\s*([\d.,]+(?:\s*/\s*[\d.,]+)?)", text, re.I)
+            field = None
+            if degree and ":" in degree:
+                degree, field = [p.strip() for p in degree.split(":", 1)]
+            if degree is None and len(parts) > 1:
+                degree = parts[1]
             result.append(
                 Education(
                     institution=institution,
                     degree=degree,
+                    field_of_study=field,
                     start_date=start,
                     end_date=end,
                     graduation_date=end,

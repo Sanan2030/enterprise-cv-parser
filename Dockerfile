@@ -5,10 +5,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . .
-RUN pip install -c constraints.txt . && useradd --create-home --uid 10001 parser
+RUN pip install -c constraints.txt '.[ocr,nlp]' && useradd --create-home --uid 10001 parser
 
 FROM base AS test
-RUN pip install -c constraints.txt '.[test]'
+RUN pip install -c constraints.txt '.[test,ocr,nlp]'
 USER parser
 CMD ["pytest", "-q", "-p", "no:cacheprovider"]
 

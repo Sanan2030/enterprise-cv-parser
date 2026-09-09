@@ -1,10 +1,9 @@
 import re
 from functools import lru_cache
+from typing import Any
 from urllib.parse import unquote, urlsplit
 
 import phonenumbers
-import spacy
-from spacy.language import Language
 
 from app.core.config import settings
 from app.extraction.hyperlink_extractor import Hyperlink
@@ -19,8 +18,14 @@ URL_REGEX = re.compile(r"(?:https?://|www\.|(?:github|linkedin)\.com/)[^\s<>]+",
 
 
 @lru_cache(maxsize=1)
-def nlp_model() -> Language | None:
-    return spacy.load(settings.SPACY_MODEL) if settings.SPACY_MODEL else None
+def nlp_model() -> Any | None:
+    if not settings.SPACY_MODEL:
+        return None
+    try:
+        import spacy
+    except ImportError:
+        return None
+    return spacy.load(settings.SPACY_MODEL)
 
 
 class EntityExtractor:

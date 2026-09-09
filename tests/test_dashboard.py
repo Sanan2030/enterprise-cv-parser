@@ -107,3 +107,10 @@ def test_real_table_api(client):
     )
     assert response.status_code == 200, response.text
     assert response.json()["tables"][0]["rows"][1] == ["Python", "Advanced"]
+
+
+def test_vercel_uses_in_process_native_parser(client, monkeypatch, pdf_bytes):
+    monkeypatch.setattr(settings, "IS_VERCEL", True)
+    response = client.post("/api/extract-cv", files={"file": ("cv.pdf", pdf_bytes, "application/pdf")})
+    assert response.status_code == 200, response.text
+    assert response.json()["personalInformation"]["fullName"] == "Alex Morgan"

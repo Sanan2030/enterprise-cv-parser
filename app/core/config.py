@@ -1,3 +1,5 @@
+import os
+
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,6 +27,7 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o-mini"
     LLM_THRESHOLD: float = Field(0.65, ge=0, le=1)
     LLM_MAX_CHARS: int = Field(30_000, ge=1000)
+    IS_VERCEL: bool = os.getenv("VERCEL") == "1"
 
 
 settings = Settings()

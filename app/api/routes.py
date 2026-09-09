@@ -16,6 +16,8 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.schemas.dashboard import DashboardResponse
 from app.schemas.resume import ResumeParsedSchema
+from app.services.dashboard_adapter import adapt_resume
+from app.services.resume_parser import ResumeParserService
 
 router = APIRouter()
 dashboard_router = APIRouter()
@@ -88,6 +90,19 @@ async def process_document(
                         if size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
                             raise HTTPException(413, "PDF exceeds the upload limit.")
                         stream.write(chunk)
+                if settings.IS_VERCEL:
+                    data = source.read_bytes()
+                    resume = ResumeParserService().parse_pdf(data, file.filename)
+                    if dashboard:
+                        from app.extraction.table_extractor import TableExtractor
+
+                        result = DashboardResponse.model_validate(
+                            adapt_resume(resume, TableExtractor.extract(data))
+                        )
+                    else:
+                        result = resume
+                    logger.bind(request_id=request_id, serverless=True).info("parse_complete")
+                    return result
                 process = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "-m",

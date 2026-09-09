@@ -8,7 +8,6 @@ from app.core.config import settings
 from app.core.exceptions import InvalidPDFException, SecurityException
 from app.extraction.hyperlink_extractor import Hyperlink, HyperlinkExtractor
 from app.extraction.layout_engine import DocumentLayoutEngine, LayoutBlock
-from app.extraction.ocr_engine import OCREngine
 from app.ingestion.pdf_detector import PDFDetector
 from app.ingestion.validator import PDFValidator
 
@@ -60,12 +59,19 @@ class PDFTextExtractor:
                                 )
                             )
                 if PDFDetector.needs_ocr(page, blocks):
-                    ocr_blocks, ocr_warnings = OCREngine().extract_page(page)
-                    warnings.extend(ocr_warnings)
-                    if ocr_blocks:
-                        blocks = ocr_blocks
+                    if settings.IS_VERCEL:
+                        warnings.append(
+                            f"Page {page.number + 1} needs OCR, which is unavailable on the Vercel deployment."
+                        )
                     else:
-                        warnings.append(f"No OCR text on page {page.number + 1}.")
+                        from app.extraction.ocr_engine import OCREngine
+
+                        ocr_blocks, ocr_warnings = OCREngine().extract_page(page)
+                        warnings.extend(ocr_warnings)
+                        if ocr_blocks:
+                            blocks = ocr_blocks
+                        else:
+                            warnings.append(f"No OCR text on page {page.number + 1}.")
                 if not blocks:
                     warnings.append(f"No text on page {page.number + 1}.")
                 total_chars += sum(len(b.text) for b in blocks)

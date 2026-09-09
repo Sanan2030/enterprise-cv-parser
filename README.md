@@ -36,7 +36,20 @@ docker compose up --build -d
 
 Visit [http://localhost:8000/](http://localhost:8000/). Upload one PDF by button or drag-and-drop. Review the editable fields and tables; export JSON, flattened CSV, or TXT, or copy JSON. Add/remove experience, education, skills, language, certification, project and table entries. Table titles, headers and cells are editable; rows and columns can be added or removed. Dark/light theme is the only value saved to browser storage. Documents, API keys and edits remain in tab memory; export before closing. JSON download initiation clears the unsaved-edit banner, but the browser/user controls whether the file is ultimately saved.
 
-`POST /api/extract-cv` takes the same multipart `file` upload and returns the camelCase dashboard schema. `GET /api/config` exposes only whether LLM fallback/API-key authentication is enabled and the upload limit; it never returns a secret. The original `/api/v1/resume/parse` response remains compatible. Both POST endpoints appear with a file picker in OpenAPI.
+`POST /api/extract-cv` takes the same multipart `file` upload and returns the camelCase dashboard schema.
+
+## Vercel deployment
+
+Vercel now uses the explicit `app.main:app` FastAPI entrypoint configured in `pyproject.toml`. Deploy the current `main` branch again from Vercel; the previous build used commit `7d62cae`, before the Vercel configuration. The runtime dependencies have been reduced so Vercel does not install OCR, spaCy, or Lingua packages by default.
+
+The deployed Vercel app parses **digital/text PDFs** in-process. Tesseract needs a system binary and is unavailable on Vercel Functions, so scanned/image-only PDFs return an extraction warning or no-readable-text error. For scanned PDF OCR, run this same project with Docker or locally and install the optional dependencies:
+
+```bash
+pip install -e '.[ocr,nlp]'
+```
+
+The Docker image and CI test environment install those extras automatically. Vercel also excludes test files from the function bundle.
+ `GET /api/config` exposes only whether LLM fallback/API-key authentication is enabled and the upload limit; it never returns a secret. The original `/api/v1/resume/parse` response remains compatible. Both POST endpoints appear with a file picker in OpenAPI.
 
 ```bash
 curl -X POST http://localhost:8000/api/extract-cv \

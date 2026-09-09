@@ -12,8 +12,6 @@ dependencies = [
  "fastapi>=0.115,<1", "uvicorn[standard]>=0.30,<1",
  "pydantic>=2.9,<3", "pydantic-settings>=2.5,<3",
  "pymupdf>=1.24,<2", "pdfplumber>=0.11,<1",
- "pytesseract>=0.3.13,<1", "pillow>=11,<13",
- "spacy>=3.8,<4", "lingua-language-detector>=2,<3",
  "dateparser>=1.2,<2", "phonenumbers>=8.13,<10",
  "rapidfuzz>=3.9,<4", "loguru>=0.7,<1",
  "python-multipart>=0.0.20,<1", "httpx>=0.28,<1"
@@ -21,6 +19,8 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.11,<1"]
+ocr = ["pytesseract>=0.3.13,<1", "pillow>=11,<13"]
+nlp = ["spacy>=3.8,<4", "lingua-language-detector>=2,<3"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
@@ -38,3 +38,6 @@ select = ["E4", "E7", "E9", "F", "I"]
 
 [tool.setuptools.data-files]
 "share/enterprise-cv-parser" = ["index.html"]
+
+[tool.vercel]
+entrypoint = "app.main:app"

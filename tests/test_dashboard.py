@@ -28,15 +28,15 @@ def test_new_endpoint_real_pdf(client, pdf_bytes):
     assert data.personalInformation.fullName == "Alex Morgan"
     assert data.contactInformation.email == "alex@example.org"
     assert data.contactInformation.mobilePhone == "+994501234567"
-    assert data.professionalInformation.currentCompany == "Example Systems"
+    assert data.experience[0].company == "Example Systems"
+    assert data.experience[0].duration
     assert data.experience[0].endDate == "Present"
     assert data.education[0].university == "Example University"
     assert "Python" in data.skills.technical
-    assert data.confidenceScores.fullName == 65
     assert data.metadata.pages == 1
     assert data.metadata.words > 0
     assert data.personalInformation.gender == ""
-    assert data.tables == []
+    assert not {"professionalInformation", "confidenceScores", "tables"} & response.json().keys()
 
 
 def test_cors_preflight(client):
@@ -76,9 +76,7 @@ def test_missing_fields_not_invented(pdf_bytes):
     resume.work_experience = []
     response = adapt_resume(resume, [])
     assert response.personalInformation.fullName == ""
-    assert response.confidenceScores.fullName == 0
-    assert response.confidenceScores.email == 0
-    assert response.professionalInformation.currentCompany == ""
+    assert response.experience == []
 
 
 def make_table_pdf():
@@ -106,7 +104,7 @@ def test_real_table_api(client):
         "/api/extract-cv", files={"file": ("table.pdf", make_table_pdf(), "application/pdf")}
     )
     assert response.status_code == 200, response.text
-    assert response.json()["tables"][0]["rows"][1] == ["Python", "Advanced"]
+    assert "tables" not in response.json()
 
 
 def test_vercel_uses_in_process_native_parser(client, monkeypatch, pdf_bytes):

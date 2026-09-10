@@ -3,6 +3,7 @@ import re
 from app.extraction.layout_engine import LayoutBlock
 from app.intelligence.provenance import provenance
 from app.normalization.date_normalizer import RANGE_PATTERN, DateNormalizer
+from app.normalization.duration import calculate_duration
 from app.schemas.resume import WorkExperience
 
 
@@ -67,6 +68,7 @@ class ExperienceParser:
                     start_date=start,
                     end_date=end,
                     current_position=current,
+                    duration=calculate_duration(start, end, current=current),
                     responsibilities=responsibilities,
                     provenance=provenance(group[0], 0.65),
                 )

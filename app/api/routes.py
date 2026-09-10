@@ -94,11 +94,7 @@ async def process_document(
                     data = source.read_bytes()
                     resume = ResumeParserService().parse_pdf(data, file.filename)
                     if dashboard:
-                        from app.extraction.table_extractor import TableExtractor
-
-                        result = DashboardResponse.model_validate(
-                            adapt_resume(resume, TableExtractor.extract(data))
-                        )
+                        result = adapt_resume(resume)
                     else:
                         result = resume
                     logger.bind(request_id=request_id, serverless=True).info("parse_complete")

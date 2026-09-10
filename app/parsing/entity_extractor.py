@@ -73,7 +73,13 @@ class EntityExtractor:
         self, header: list[LayoutBlock], blocks: list[LayoutBlock], links: list[Hyperlink]
     ) -> PersonalInformation:
         link_blocks = [LayoutBlock(link.bbox, unquote(link.url), link.page) for link in links]
-        contacts = self.extract_contact_info("\n".join(b.text for b in blocks), links)
+        contact_blocks = header or blocks
+        contact_text = "\n".join(b.text for b in contact_blocks)
+        contacts = self.extract_contact_info(contact_text, links)
+        # Social links can also appear in a dedicated section or project entry.
+        all_contacts = self.extract_contact_info("\n".join(b.text for b in blocks), links)
+        for key in ("linkedin", "github", "website"):
+            contacts[key] = contacts[key] or all_contacts[key]
         model = nlp_model()
         name = None
         # Large names can wrap onto two lines. Preserve their combined evidence.
@@ -130,6 +136,58 @@ class EntityExtractor:
             parts = name.value.split()
             personal.first_name = sourced(parts[0], header, name.confidence)
             personal.last_name = sourced(parts[-1], header, name.confidence)
+            if len(parts) > 2:
+                personal.middle_name = sourced(" ".join(parts[1:-1]), header, name.confidence)
+        labels = {
+            "full_name": r"full name|name|ad soyad",
+            "first_name": r"first name|given name",
+            "last_name": r"last name|surname|family name",
+            "middle_name": r"middle name|ata adı",
+            "date_of_birth": r"date of birth|dob|doğum tarixi|дата рождения",
+            "gender": r"gender|sex|cins|пол",
+            "nationality": r"nationality|vətəndaşlıq|гражданство",
+            "location": r"address|location|ünvan|adres|адрес",
+        }
+        for field, aliases in labels.items():
+            match = re.search(rf"(?:^|[\n|;])\s*(?:{aliases})\s*:\s*([^\n|;]+)", contact_text, re.I)
+            if match:
+                setattr(personal, field, sourced(match[1].strip(), contact_blocks, 0.9))
+        if personal.full_name and not personal.first_name:
+            parts = personal.full_name.value.split()
+            personal.first_name = sourced(parts[0], contact_blocks, 0.9)
+            personal.last_name = sourced(parts[-1], contact_blocks, 0.9) if len(parts) > 1 else None
+            personal.middle_name = (
+                sourced(" ".join(parts[1:-1]), contact_blocks, 0.9) if len(parts) > 2 else None
+            )
+        if not personal.full_name and personal.first_name and personal.last_name:
+            personal.full_name = FieldWithMetadata(
+                value=" ".join(
+                    f.value for f in (personal.first_name, personal.middle_name, personal.last_name) if f
+                ),
+                confidence=0.9,
+                provenance=personal.first_name.provenance,
+            )
+        numbers = list(
+            dict.fromkeys(
+                phonenumbers.format_number(m.number, phonenumbers.PhoneNumberFormat.E164)
+                for m in phonenumbers.PhoneNumberMatcher(contact_text, settings.DEFAULT_PHONE_REGION)
+            )
+        )
+        if len(numbers) > 1:
+            phone_block = next(
+                b
+                for b in contact_blocks
+                if any(
+                    phonenumbers.format_number(m.number, phonenumbers.PhoneNumberFormat.E164) == numbers[1]
+                    for m in phonenumbers.PhoneNumberMatcher(b.text, settings.DEFAULT_PHONE_REGION)
+                )
+            )
+            personal.alternative_phone = FieldWithMetadata(
+                value=numbers[1], confidence=0.9, provenance=provenance(phone_block, 0.9)
+            )
+        portfolio = re.search(r"(?im)^\s*portfolio\s*:\s*(\S+)", contact_text)
+        if portfolio:
+            personal.portfolio = URLNormalizer.normalize(portfolio[1])
         for block in header:
             match = re.search(r"(?:^|[|;])\s*(?:nationality|vətəndaşlıq)\s*:\s*([^|;]+)", block.text, re.I)
             if match:

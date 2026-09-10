@@ -27,21 +27,24 @@ def value(field: FieldWithMetadata | None) -> str:
 def adapt_resume(resume: ResumeParsedSchema, tables: list | None = None) -> DashboardResponse:
     person = resume.personal_information
     text = "\n".join(p.source_text for group in resume.raw_sections.values() for p in group)
+    contact_text = "\n".join(
+        p.source_text for key in ("header", "personal_information") for p in resume.raw_sections.get(key, [])
+    )
 
     def labeled(*labels: str) -> str:
         match = re.search(
             r"(?im)(?:^|[|;])\s*(?:" + "|".join(re.escape(label) for label in labels) + r")\s*:\s*([^\n|;]+)",
-            text,
+            contact_text,
         )
         return match[1].strip() if match else ""
 
-    emails = set(EMAIL_REGEX.findall(text))
+    emails = set(EMAIL_REGEX.findall(contact_text))
     if value(person.email):
         emails.add(value(person.email))
     phones = list(
         dict.fromkeys(
             phonenumbers.format_number(m.number, phonenumbers.PhoneNumberFormat.E164)
-            for m in phonenumbers.PhoneNumberMatcher(text, settings.DEFAULT_PHONE_REGION)
+            for m in phonenumbers.PhoneNumberMatcher(contact_text, settings.DEFAULT_PHONE_REGION)
         )
     )
     if value(person.phone) and value(person.phone) not in phones:
@@ -57,9 +60,9 @@ def adapt_resume(resume: ResumeParsedSchema, tables: list | None = None) -> Dash
             fullName=value(person.full_name),
             firstName=value(person.first_name),
             lastName=value(person.last_name),
-            middleName=labeled("middle name"),
-            dateOfBirth=labeled("date of birth", "doğum tarixi", "дата рождения"),
-            gender=labeled("gender", "cins", "пол"),
+            middleName=value(person.middle_name),
+            dateOfBirth=value(person.date_of_birth),
+            gender=value(person.gender),
             nationality=value(person.nationality) or labeled("nationality", "vətəndaşlıq"),
             maritalStatus=labeled("marital status", "ailə vəziyyəti"),
             address=value(person.location),
@@ -67,7 +70,7 @@ def adapt_resume(resume: ResumeParsedSchema, tables: list | None = None) -> Dash
         contactInformation=ContactInformation(
             email=value(person.email),
             mobilePhone=value(person.phone),
-            alternativePhone=next((p for p in phones if p != value(person.phone)), ""),
+            alternativePhone=value(person.alternative_phone),
             linkedIn=person.linkedin or "",
             gitHub=person.github or "",
             portfolio=person.portfolio or person.website or "",

@@ -9,7 +9,7 @@ MONTHS = dict(
         "january february march april may june july august september october november december".split(),
     )
 )
-CURRENT = r"(?:present|current|now|hal[- ]hazırda|hazırda|indiki|devam|günümüz|halen|по настоящее время|настоящее время|н\.\s*в\.)"
+CURRENT = r"(?:present|current|now|hal\s*[- ]\s*hazırda|hazırda|indiki|devam|günümüz|halen|по настоящее время|настоящее время|н\.\s*в\.)"
 MONTH = r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|yanvar|fevral|mart|aprel|iyun|iyul|avqust|sentyabr|oktyabr|noyabr|dekabr|ocak|şubat|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık|январ[ья]|феврал[ья]|март[а]?|апрел[ья]|ма[йя]|июн[ья]|июл[ья]|август[а]?|сентябр[ья]|октябр[ья]|ноябр[ья]|декабр[ья])\.?"
 DATE_TOKEN = rf"(?:\d{{1,2}}\.\d{{1,2}}[.-]\d{{2}}(?!\d)|\d{{4}}[-/.]\d{{1,2}}(?:[-/.]\d{{1,2}})?|\d{{1,2}}[/.]\d{{1,2}}[/.]\d{{4}}|\d{{1,2}}[/.]\d{{4}}|(?:\d{{1,2}}\s+)?{MONTH}\s+\d{{4}}|\d{{4}})"
 RANGE_PATTERN = re.compile(

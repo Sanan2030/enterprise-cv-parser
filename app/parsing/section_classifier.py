@@ -7,8 +7,12 @@ from rapidfuzz import fuzz
 from app.extraction.layout_engine import LayoutBlock
 
 SECTION_DICTIONARY = {
+    "references": ["references", "referanslar", "referans", "recommendations"],
+    "interests": ["interests", "hobbies", "maraqlar", "hobbilər"],
     "personal_information": [
         "contact",
+        "contact information",
+        "personal information",
         "personal info",
         "personal details",
         "əlaqə",
@@ -69,7 +73,15 @@ SECTION_DICTIONARY = {
         "сертификаты",
         "zertifikate",
     ],
-    "languages": ["languages", "language proficiency", "dil bilikləri", "diller", "языки", "sprachen"],
+    "languages": [
+        "languages",
+        "language proficiency",
+        "dil bilikləri",
+        "dillər",
+        "diller",
+        "языки",
+        "sprachen",
+    ],
     "projects": ["projects", "personal projects", "layihələr", "projeler", "проекты", "projekte"],
 }
 
@@ -77,7 +89,16 @@ SECTION_DICTIONARY = {
 class SectionClassifier:
     @staticmethod
     def classify_block(text: str) -> tuple[str | None, float]:
-        clean = unicodedata.normalize("NFKC", text).casefold().strip().rstrip(":：").strip()
+        clean = (
+            unicodedata.normalize("NFKC", text)
+            .casefold()
+            .replace("i\u0307", "i")
+            .strip()
+            .rstrip(":：")
+            .strip()
+        )
+        if clean == "haqqimda":
+            clean = "haqqımda"
         if not clean or len(clean) > 48 or len(clean.split()) > 5 or re.search(r"[.!?;,]", clean):
             return None, 0.0
         scores = []

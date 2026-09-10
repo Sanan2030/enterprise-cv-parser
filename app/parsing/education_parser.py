@@ -4,6 +4,7 @@ from app.extraction.layout_engine import LayoutBlock
 from app.intelligence.provenance import provenance
 from app.normalization.date_normalizer import RANGE_PATTERN, DateNormalizer
 from app.parsing.experience_parser import group_entries
+from app.parsing.labeled_fields import labeled, labeled_dates
 from app.schemas.resume import Education
 
 
@@ -13,7 +14,7 @@ class EducationParser:
         for group in group_entries(blocks):
             text = "\n".join(b.text for b in group)
             dated = RANGE_PATTERN.search(text)
-            start, end, _ = DateNormalizer.normalize_span(dated[0]) if dated else (None, None, False)
+            start, end, _ = DateNormalizer.normalize_span(dated[0]) if dated else labeled_dates(text)
             parts = [
                 p.strip(" -–—") for p in re.split(r"\n|\|", RANGE_PATTERN.sub("", text)) if p.strip(" -–—")
             ]
@@ -41,7 +42,13 @@ class EducationParser:
             )
             gpa = re.search(r"\bGPA\s*:?\s*([\d.,]+(?:\s*/\s*[\d.,]+)?)", text, re.I)
             field = None
-            if institution and institution.casefold() in {"university", "college", "institute"}:
+            if institution and institution.casefold() in {
+                "university",
+                "college",
+                "institute",
+                "universiteti",
+                "üniversitesi",
+            }:
                 index = parts.index(institution)
                 if index > 0:
                     institution = parts[index - 1] + " " + institution
@@ -54,7 +61,7 @@ class EducationParser:
                             p
                             for p in parts
                             if re.search(
-                                r"information tech?nology|computer science|engineering|business administration",
+                                r"information tech?nology|computer science|engineering|business administration|mühendis|mühəndis|texnologiya",
                                 p,
                                 re.I,
                             )
@@ -66,14 +73,20 @@ class EducationParser:
                     else None
                 )
                 if field:
+                    index = parts.index(field)
+                    if index + 1 < len(parts) and parts[index + 1].casefold() in {
+                        "mühəndisliyi",
+                        "mühendisliği",
+                    }:
+                        field += " " + parts[index + 1]
                     field = re.sub(r"\bTecnology\b", "Technology", field, flags=re.I)
                 elif len(parts) > 1 and parts[1] != institution and parts[1].casefold() != "university":
                     degree = parts[1]
             result.append(
                 Education(
-                    institution=institution,
-                    degree=degree,
-                    field_of_study=field,
+                    institution=labeled(text, "university", "institution") or institution,
+                    degree=labeled(text, "degree") or degree,
+                    field_of_study=labeled(text, "field of study", "major") or field,
                     start_date=start,
                     end_date=end,
                     graduation_date=end,

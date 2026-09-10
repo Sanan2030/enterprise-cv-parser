@@ -13,12 +13,11 @@ from app.parsing.language_detector import DocumentLanguageDetector
 from app.parsing.language_skills import parse_languages
 from app.parsing.section_classifier import SectionClassifier
 from app.parsing.skill_extractor import SkillExtractor
+from app.parsing.structured_sections import parse_certifications, parse_projects
 from app.schemas.resume import (
-    Certification,
     DocumentMetadata,
     FieldWithMetadata,
     ProfessionalProfile,
-    Project,
     QualityControl,
     ResumeParsedSchema,
 )
@@ -31,7 +30,10 @@ class ResumeParserService:
         blocks = extraction.blocks
         sections = SectionClassifier().segment_document(blocks)
         header = sections["header"] + sections["personal_information"]
-        personal = EntityExtractor().extract(header, blocks, extraction.links)
+        candidate_blocks = [
+            b for key, group in sections.items() if key not in {"references", "interests"} for b in group
+        ]
+        personal = EntityExtractor().extract(header, candidate_blocks, extraction.links)
         profile = ProfessionalProfile()
         summaries = sections["professional_summary"]
         if summaries:
@@ -40,7 +42,7 @@ class ResumeParserService:
                 confidence=0.8,
                 provenance=provenance(summaries[0], 0.8),
             )
-        text = "\n".join(b.text for b in blocks)
+        text = "\n".join(b.text for b in candidate_blocks)
         warnings = list(extraction.warnings)
         if not settings.SPACY_MODEL:
             warnings.append("spaCy NER model not configured; name extraction uses conservative heuristics.")
@@ -55,9 +57,9 @@ class ResumeParserService:
             professional_profile=profile,
             work_experience=ExperienceParser().parse(sections["work_experience"]),
             education=EducationParser().parse(sections["education"]),
-            skills=SkillExtractor().extract_skills(text, "\n".join(b.text for b in sections["skills"])),
-            certifications=[Certification(certification_name=b.text) for b in sections["certifications"]],
-            projects=[Project(project_name=b.text) for b in sections["projects"]],
+            skills=SkillExtractor().extract_skills(text, SkillExtractor.section_text(sections["skills"])),
+            certifications=parse_certifications(sections["certifications"]),
+            projects=parse_projects(sections["projects"]),
             raw_sections={key: [provenance(b) for b in value] for key, value in sections.items() if value},
             quality=QualityControl(warnings=warnings, extraction_method=extraction.method),
         )

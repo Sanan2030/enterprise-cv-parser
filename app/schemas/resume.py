@@ -33,6 +33,10 @@ class FieldWithMetadata(Schema):
 
 
 class PersonalInformation(Schema):
+    middle_name: Optional[FieldWithMetadata] = None
+    date_of_birth: Optional[FieldWithMetadata] = None
+    gender: Optional[FieldWithMetadata] = None
+    alternative_phone: Optional[FieldWithMetadata] = None
     first_name: Optional[FieldWithMetadata] = None
     last_name: Optional[FieldWithMetadata] = None
     full_name: Optional[FieldWithMetadata] = None

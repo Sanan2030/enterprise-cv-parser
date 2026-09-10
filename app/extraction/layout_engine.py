@@ -44,6 +44,24 @@ class DocumentLayoutEngine:
         ordered = sorted(blocks, key=lambda b: (b.y0, b.x0))
         from app.parsing.section_classifier import SectionClassifier
 
+        section_heads = [b for b in ordered if SectionClassifier.classify_block(b.text)[0]]
+        # Whole-page sidebar layouts must be read by column before splitting
+        # sections; a heading in the main column must not interrupt sidebar data.
+        for percent in range(25, 66):
+            cut = page_width * percent / 100
+            left_heads = [b for b in section_heads if b.x1 < cut]
+            right_heads = [b for b in section_heads if b.x0 > cut]
+            if len(left_heads) < 2 or len(right_heads) < 2:
+                continue
+            top = min(min(b.y0 for b in left_heads), min(b.y0 for b in right_heads))
+            body = [b for b in ordered if b.y0 >= top]
+            if any(b.x0 < cut < b.x1 for b in body):
+                continue
+            left = [b for b in body if b.x1 <= cut]
+            right = [b for b in body if b.x0 >= cut]
+            if left and right and min(b.x0 for b in right) - max(b.x1 for b in left) >= 12:
+                return [b for b in ordered if b.y0 < top] + left + right
+
         # A heading is a band boundary only when there is no other-column text
         # beside it. Independent sidebar headings must not split the main column.
         headings = [

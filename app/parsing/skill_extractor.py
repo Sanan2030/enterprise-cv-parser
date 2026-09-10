@@ -1,8 +1,10 @@
 import re
 
+from app.extraction.layout_engine import LayoutBlock
 from app.schemas.resume import ExtractedSkill, SkillsCategorized
 
 SKILL_TAXONOMY = {
+    "software_tools": ["postman", "swagger", "trello", "figma", "erp", "sap", "tiger"],
     "programming_languages": [
         "python",
         "javascript",
@@ -40,6 +42,7 @@ SKILL_TAXONOMY = {
         "scrum",
         "jira",
         "brd",
+        "frs",
         "requirements analysis",
         "use cases",
         "lucidchart",
@@ -58,6 +61,23 @@ SKILL_TAXONOMY = {
 
 
 class SkillExtractor:
+    @staticmethod
+    def section_text(blocks: list[LayoutBlock]) -> str:
+        items: list[str] = []
+        previous = None
+        for block in blocks:
+            if (
+                previous
+                and block.page_num == previous.page_num
+                and abs(block.x0 - previous.x0) < 10
+                and 0 <= block.y0 - previous.y1 <= 3
+            ):
+                items[-1] += " " + block.text
+            else:
+                items.append(block.text)
+            previous = block
+        return "\n".join("• " + item for item in items)
+
     def extract_skills(self, text: str, explicit_section: str = "") -> SkillsCategorized:
         result = SkillsCategorized()
         known = set()

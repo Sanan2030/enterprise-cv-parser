@@ -4,6 +4,7 @@ from app.extraction.layout_engine import LayoutBlock
 from app.intelligence.provenance import provenance
 from app.normalization.date_normalizer import RANGE_PATTERN, DateNormalizer
 from app.normalization.duration import calculate_duration
+from app.parsing.labeled_fields import labeled, labeled_dates
 from app.schemas.resume import WorkExperience
 
 
@@ -13,6 +14,11 @@ def group_entries(blocks: list[LayoutBlock]) -> list[list[LayoutBlock]]:
     current: list[LayoutBlock] = []
     dated = False
     for block in blocks:
+        label = re.match(r"(?i)^(company|employer|position|job title|university|institution)\s*:", block.text)
+        if label and any(re.match(rf"(?i)^{re.escape(label[1])}\s*:", b.text) for b in current):
+            groups.append(current)
+            current = []
+            dated = False
         match = RANGE_PATTERN.search(block.text)
         if match and dated:
             carried = []
@@ -46,8 +52,9 @@ class ExperienceParser:
     def parse(self, blocks: list[LayoutBlock]) -> list[WorkExperience]:
         result = []
         for group in group_entries(blocks):
+            text = "\n".join(b.text for b in group)
             dated = next((RANGE_PATTERN.search(b.text) for b in group if RANGE_PATTERN.search(b.text)), None)
-            start, end, current = DateNormalizer.normalize_span(dated[0]) if dated else (None, None, False)
+            start, end, current = DateNormalizer.normalize_span(dated[0]) if dated else labeled_dates(text)
             header = []
             responsibilities = []
             for b in group:
@@ -58,6 +65,15 @@ class ExperienceParser:
                     clean = re.sub(r"^Asa\s+", "As a ", clean)
                 if not clean:
                     continue
+                if re.match(
+                    r"(?i)^(company|employer|position|job title|start date|end date|location|employment type)\s*:",
+                    clean,
+                ):
+                    continue
+                clean = re.sub(r"(?i)^responsibilities\s*:\s*", "", clean)
+                if labeled(text, "position", "job title") or labeled(text, "company", "employer"):
+                    responsibilities.append(clean.lstrip("•*- "))
+                    continue
                 if len(header) < 2 and not is_bullet and len(clean) < 120:
                     header.extend(
                         part.strip() for part in re.split(r"\s*\|\s*|\s+at\s+", clean) if part.strip()
@@ -66,8 +82,10 @@ class ExperienceParser:
                     responsibilities.append(clean.lstrip("•*- "))
             result.append(
                 WorkExperience(
-                    job_title=header[0] if header else None,
-                    company=header[1] if len(header) > 1 else None,
+                    job_title=labeled(text, "position", "job title") or (header[0] if header else None),
+                    company=labeled(text, "company", "employer") or (header[1] if len(header) > 1 else None),
+                    location=labeled(text, "location"),
+                    employment_type=labeled(text, "employment type"),
                     start_date=start,
                     end_date=end,
                     current_position=current,

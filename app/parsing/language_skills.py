@@ -41,11 +41,13 @@ def parse_languages(blocks: list[LayoutBlock]) -> list[LanguageSkill]:
         if not LEVEL.match(block.text.strip()):
             continue
         candidates = [
-            (abs(block.x0 - b.x0), block.y0 - b.y0, entry)
+            (abs(block.y0 - b.y0), abs(block.x0 - b.x0), entry)
             for b, entry in names
             if b.page_num == block.page_num
-            and 0 <= block.y0 - b.y0 <= 50
-            and abs(block.x0 - b.x0) < 25
+            and (
+                (0 <= block.y0 - b.y0 <= 50 and abs(block.x0 - b.x0) < 25)
+                or (abs(block.y0 - b.y0) < 3 and 0 <= block.x0 - b.x1 < 200)
+            )
             and entry.proficiency is None
         ]
         if candidates:

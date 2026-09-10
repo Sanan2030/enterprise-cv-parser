@@ -55,6 +55,40 @@ def english_model_directory() -> Path:
 
 
 class ServerlessOCREngine:
+    def extract_region(self, page: fitz.Page, bbox: tuple) -> list[LayoutBlock]:
+        try:
+            return self._extract_region(page, bbox)
+        except (RuntimeError, ValueError) as exc:
+            raise OCRError("Regional PDF OCR failed. Try a clearer scan.") from exc
+
+    def _extract_region(self, page: fitz.Page, bbox: tuple) -> list[LayoutBlock]:
+        clip = (fitz.Rect(bbox) + (-3, -3, 3, 3)) & page.rect
+        scale = settings.OCR_DPI / 72
+        if clip.get_area() * scale**2 > settings.MAX_PAGE_PIXELS:
+            raise SecurityException("Page exceeds the OCR pixel limit.")
+        pixmap = page.get_pixmap(dpi=settings.OCR_DPI, clip=clip, colorspace=fitz.csRGB, alpha=False)
+        result = []
+        with fitz.open(
+            stream=pixmap.pdfocr_tobytes(language="eng", tessdata=str(english_model_directory())),
+            filetype="pdf",
+        ) as extracted:
+            for group in extracted[0].get_text("dict")["blocks"]:
+                for line in group.get("lines", []):
+                    text = "".join(span["text"] for span in line["spans"]).strip()
+                    if text:
+                        x0, y0, x1, y1 = line["bbox"]
+                        result.append(
+                            LayoutBlock(
+                                (x0 + clip.x0, y0 + clip.y0, x1 + clip.x0, y1 + clip.y0),
+                                text,
+                                page.number + 1,
+                                max(s["size"] for s in line["spans"]),
+                                method="ocr",
+                                confidence=0.65,
+                            )
+                        )
+        return result
+
     def extract_page(self, page: fitz.Page) -> tuple[list[LayoutBlock], list[str]]:
         scale = settings.OCR_DPI / 72
         if page.rect.width * page.rect.height * scale**2 > settings.MAX_PAGE_PIXELS:

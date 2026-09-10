@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.11,<1"]
+test = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.11,<1", "reportlab>=4,<5"]
 ocr = ["pytesseract>=0.3.13,<1", "pillow>=11,<13"]
 nlp = ["spacy>=3.8,<4", "lingua-language-detector>=2,<3"]
 

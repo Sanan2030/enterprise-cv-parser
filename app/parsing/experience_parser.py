@@ -57,13 +57,25 @@ class ExperienceParser:
             start, end, current = DateNormalizer.normalize_span(dated[0]) if dated else labeled_dates(text)
             header = []
             responsibilities = []
-            for b in group:
+            for index, b in enumerate(group):
                 is_bullet = b.text.lstrip().startswith(("•", "-", "*"))
                 clean = RANGE_PATTERN.sub("", b.text).strip(" |,–—-")
                 if b.method == "ocr":
                     clean = re.sub(r"^[eo]\s+(?=As(?:a|\s))", "", clean)
                     clean = re.sub(r"^Asa\s+", "As a ", clean)
                 if not clean:
+                    continue
+                if (
+                    len(header) == 2
+                    and not is_bullet
+                    and index + 1 < len(group)
+                    and RANGE_PATTERN.fullmatch(group[index + 1].text.strip())
+                    and not any(RANGE_PATTERN.search(part.text) for part in group[:index])
+                    and index > 0
+                    and abs(b.x0 - group[index - 1].x0) < 5
+                    and 0 <= b.y0 - group[index - 1].y1 < max(5, b.font_size)
+                ):
+                    header[-1] += " " + clean
                     continue
                 if re.match(
                     r"(?i)^(company|employer|position|job title|start date|end date|location|employment type)\s*:",

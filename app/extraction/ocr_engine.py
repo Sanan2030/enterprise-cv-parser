@@ -1,4 +1,5 @@
 from collections import defaultdict
+from dataclasses import replace
 
 import pymupdf as fitz
 import pytesseract
@@ -10,6 +11,27 @@ from app.extraction.layout_engine import LayoutBlock
 
 
 class OCREngine:
+    def extract_region(self, page: fitz.Page, bbox: tuple) -> list[LayoutBlock]:
+        clip = (fitz.Rect(bbox) + (-3, -3, 3, 3)) & page.rect
+        if clip.get_area() * (settings.OCR_DPI / 72) ** 2 > settings.MAX_PAGE_PIXELS:
+            raise SecurityException("Page exceeds the OCR pixel limit.")
+        try:
+            pixmap = page.get_pixmap(dpi=settings.OCR_DPI, clip=clip, colorspace=fitz.csRGB, alpha=False)
+            with fitz.open() as document:
+                region = document.new_page(width=clip.width, height=clip.height)
+                region.insert_image(region.rect, stream=pixmap.tobytes("png"))
+                blocks, _ = self.extract_page(region)
+            return [
+                replace(
+                    b,
+                    bbox=(b.x0 + clip.x0, b.y0 + clip.y0, b.x1 + clip.x0, b.y1 + clip.y0),
+                    page_num=page.number + 1,
+                )
+                for b in blocks
+            ]
+        except (RuntimeError, ValueError) as exc:
+            raise OCRError("Regional PDF OCR failed. Try a clearer scan.") from exc
+
     def extract_page(self, page: fitz.Page) -> tuple[list[LayoutBlock], list[str]]:
         pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
         try:

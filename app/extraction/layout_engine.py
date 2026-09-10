@@ -60,7 +60,11 @@ class DocumentLayoutEngine:
             left = [b for b in body if b.x1 <= cut]
             right = [b for b in body if b.x0 >= cut]
             if left and right and min(b.x0 for b in right) - max(b.x1 for b in left) >= 12:
-                return [b for b in ordered if b.y0 < top] + left + right
+                return (
+                    [b for b in ordered if b.y0 < top]
+                    + DocumentLayoutEngine.sort_reading_order(left, page_width)
+                    + DocumentLayoutEngine.sort_reading_order(right, page_width)
+                )
 
         # A heading is a band boundary only when there is no other-column text
         # beside it. Independent sidebar headings must not split the main column.

@@ -53,6 +53,9 @@ class ExperienceParser:
             for b in group:
                 is_bullet = b.text.lstrip().startswith(("•", "-", "*"))
                 clean = RANGE_PATTERN.sub("", b.text).strip(" |,–—-")
+                if b.method == "ocr":
+                    clean = re.sub(r"^[eo]\s+(?=As(?:a|\s))", "", clean)
+                    clean = re.sub(r"^Asa\s+", "As a ", clean)
                 if not clean:
                     continue
                 if len(header) < 2 and not is_bullet and len(clean) < 120:

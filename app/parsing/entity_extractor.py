@@ -61,6 +61,12 @@ class EntityExtractor:
             )
             if result[key] is None:
                 result[key] = url
+        if result["github"] is None:
+            match = re.search(
+                r"(?im)\bgithub\s*:\s*([a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?)[_ ]*(?=\n|$)", text
+            )
+            if match:
+                result["github"] = "https://github.com/" + match[1]
         return result
 
     def extract(

@@ -189,6 +189,15 @@ docker compose up --build -d
 The initial delivery archive includes `history.bundle` for the original local semantic commits. The repository's `main` branch contains the published implementation and publication documentation updates.
 # Layout regression fixes
 
+Scanned two-column resumes receive region OCR to recover tinted education sidebars
+and prevent paragraph artifacts. Dotted short dates use day-month-year order;
+two-digit years 00–49 map to 2000–2049 and 50–99 to 1950–1999. A hyphen replacing
+the final date dot is accepted for OCR (for example `01.05-23-01.08.23`).
+Labeled GitHub usernames can produce profile URLs. A printed LinkedIn display
+name alone does not identify a profile URL. Education subjects remain separate
+from degrees; missing degrees are not invented. The dashboard omits the internal
+spaCy configuration notice while retaining the useful OCR review notice.
+
 The parser joins nearby PDF text fragments without crossing bullet columns, keeps
 right-aligned date ranges with their entry headers, and respects full-width section
 boundaries. Wrapped large-font names, pipe-separated personal fields, degree/subject

@@ -41,10 +41,34 @@ class EducationParser:
             )
             gpa = re.search(r"\bGPA\s*:?\s*([\d.,]+(?:\s*/\s*[\d.,]+)?)", text, re.I)
             field = None
+            if institution and institution.casefold() in {"university", "college", "institute"}:
+                index = parts.index(institution)
+                if index > 0:
+                    institution = parts[index - 1] + " " + institution
             if degree and ":" in degree:
                 degree, field = [p.strip() for p in degree.split(":", 1)]
-            if degree is None and len(parts) > 1:
-                degree = parts[1]
+            if degree is None:
+                field = (
+                    next(
+                        (
+                            p
+                            for p in parts
+                            if re.search(
+                                r"information tech?nology|computer science|engineering|business administration",
+                                p,
+                                re.I,
+                            )
+                            and p not in institution
+                        ),
+                        None,
+                    )
+                    if institution
+                    else None
+                )
+                if field:
+                    field = re.sub(r"\bTecnology\b", "Technology", field, flags=re.I)
+                elif len(parts) > 1 and parts[1] != institution and parts[1].casefold() != "university":
+                    degree = parts[1]
             result.append(
                 Education(
                     institution=institution,

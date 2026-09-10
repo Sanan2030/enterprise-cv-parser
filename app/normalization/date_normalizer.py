@@ -10,10 +10,10 @@ MONTHS = dict(
     )
 )
 CURRENT = r"(?:present|current|now|hal[- ]hazırda|hazırda|indiki|devam|günümüz|halen|по настоящее время|настоящее время|н\.\s*в\.)"
-MONTH = r"[^\W\d_]{3,12}\.?"
-DATE_TOKEN = rf"(?:\d{{4}}[-/.]\d{{1,2}}(?:[-/.]\d{{1,2}})?|\d{{1,2}}[/.]\d{{1,2}}[/.]\d{{4}}|\d{{1,2}}[/.]\d{{4}}|(?:\d{{1,2}}\s+)?{MONTH}\s+\d{{4}}|\d{{4}})"
+MONTH = r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|yanvar|fevral|mart|aprel|iyun|iyul|avqust|sentyabr|oktyabr|noyabr|dekabr|ocak|şubat|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık|январ[ья]|феврал[ья]|март[а]?|апрел[ья]|ма[йя]|июн[ья]|июл[ья]|август[а]?|сентябр[ья]|октябр[ья]|ноябр[ья]|декабр[ья])\.?"
+DATE_TOKEN = rf"(?:\d{{1,2}}\.\d{{1,2}}[.-]\d{{2}}(?!\d)|\d{{4}}[-/.]\d{{1,2}}(?:[-/.]\d{{1,2}})?|\d{{1,2}}[/.]\d{{1,2}}[/.]\d{{4}}|\d{{1,2}}[/.]\d{{4}}|(?:\d{{1,2}}\s+)?{MONTH}\s+\d{{4}}|\d{{4}})"
 RANGE_PATTERN = re.compile(
-    rf"(?<!\w)(?P<start>{DATE_TOKEN})\s*(?:–|—|\s+-\s+|-(?=\d{{4}}\b)|\bto\b|\bдо\b)\s*(?P<end>{CURRENT}|{DATE_TOKEN})(?!\w)",
+    rf"(?<!\w)(?P<start>{DATE_TOKEN})\s*(?:–|—|\s+-\s+|-(?=\d{{4}}\b|\d{{1,2}}\.)|\bto\b|\bдо\b)\s*(?P<end>{CURRENT}|{DATE_TOKEN})(?!\w)",
     re.I,
 )
 
@@ -22,6 +22,13 @@ class DateNormalizer:
     @staticmethod
     def normalize(value: str) -> str | None:
         text = value.strip().casefold()
+        short = re.fullmatch(r"(\d{1,2})\.(\d{1,2})[.-](\d{2})", text)
+        if short:
+            day, month, year = map(int, short.groups())
+            try:
+                return date(year + (2000 if year < 50 else 1900), month, day).isoformat()
+            except ValueError:
+                return None
         if re.fullmatch(CURRENT, text, re.I) or not re.search(r"\b(?:19|20)\d{2}\b", text):
             return None
         if re.fullmatch(r"(?:19|20)\d{2}", text):

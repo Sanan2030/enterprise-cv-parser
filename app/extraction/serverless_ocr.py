@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -13,6 +14,7 @@ import pymupdf as fitz
 from app.core.config import settings
 from app.core.exceptions import OCRError, SecurityException
 from app.extraction.layout_engine import LayoutBlock
+from app.parsing.section_classifier import SectionClassifier
 
 MODEL_URL = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/eng.traineddata"
 MODEL_SHA256 = "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
@@ -103,6 +105,72 @@ class ServerlessOCREngine:
                                         confidence=0.65,
                                     )
                                 )
+            # Retry separated columns so tinted sidebars and nearby paragraph text
+            # do not interfere with each other's OCR segmentation.
+            positions = sorted(
+                {
+                    b.x0
+                    for b in blocks
+                    if b.y0 > page.rect.height * 0.18 and len(b.text) > 5 and b.x0 < page.rect.width * 0.7
+                }
+            )
+            gaps = [(right - left, right) for left, right in zip(positions, positions[1:])]
+            if gaps:
+                gap, right = max(gaps)
+                cut = right - 12
+                if gap > page.rect.width * 0.18 and page.rect.width * 0.25 < cut < page.rect.width * 0.65:
+                    for x0, x1 in [(0, cut), (cut, page.rect.width)]:
+                        top = page.rect.height * 0.18
+                        bottom = page.rect.height
+                        if x0 == 0:
+                            headings = [
+                                b.y0
+                                for b in blocks
+                                if b.x0 < cut and SectionClassifier.classify_block(b.text)[0] == "education"
+                            ]
+                            if headings:
+                                top = min(headings) - 5
+                                following = [
+                                    b.y0
+                                    for b in blocks
+                                    if b.x0 < cut
+                                    and b.y0 > top + 10
+                                    and SectionClassifier.classify_block(b.text)[0] == "skills"
+                                ]
+                                if following:
+                                    bottom = min(following) - 3
+                        clip = fitz.Rect(x0, top, x1, bottom)
+                        pixmap = page.get_pixmap(
+                            dpi=settings.OCR_DPI, clip=clip, colorspace=fitz.csRGB, alpha=False
+                        )
+                        replacement = []
+                        with fitz.open(
+                            stream=pixmap.pdfocr_tobytes(language="eng", tessdata=str(directory)),
+                            filetype="pdf",
+                        ) as column:
+                            for group in column[0].get_text("dict")["blocks"]:
+                                for line in group.get("lines", []):
+                                    spans = line["spans"]
+                                    text = " ".join(" ".join(s["text"] for s in spans).split())
+                                    if not re.search(r"\w{2}", text):
+                                        continue
+                                    text = re.sub(r"(?<!\S)\|(?=\s+[A-Za-z])", "I", text)
+                                    a, b, c, d = line["bbox"]
+                                    replacement.append(
+                                        LayoutBlock(
+                                            (a + x0, b + top, c + x0, d + top),
+                                            text,
+                                            page.number + 1,
+                                            max(s["size"] for s in spans),
+                                            method="ocr",
+                                            confidence=0.65,
+                                        )
+                                    )
+                        if replacement:
+                            blocks = [
+                                b for b in blocks if not (x0 <= b.x0 < x1 and top <= b.y0 < bottom)
+                            ] + replacement
+            blocks = [b for b in blocks if re.search(r"\w{2}", b.text)]
         except (RuntimeError, ValueError) as exc:
             raise OCRError("Image-based PDF OCR failed. Try a clearer scan or a text-based PDF.") from exc
         return blocks, [

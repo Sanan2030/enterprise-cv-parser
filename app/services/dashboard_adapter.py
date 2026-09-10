@@ -130,6 +130,10 @@ def adapt_resume(resume: ResumeParsedSchema, tables: list | None = None) -> Dash
             documentLanguage=resume.document.document_language.primary,
             processingTimeMs=resume.document.processing_time_ms,
             llmEnabled=settings.USE_LLM_FALLBACK,
-            warnings=[w for w in resume.quality.warnings if "confidence" not in w.lower()],
+            warnings=[
+                w
+                for w in resume.quality.warnings
+                if "confidence" not in w.lower() and not w.startswith("spaCy NER model not configured")
+            ],
         ),
     )

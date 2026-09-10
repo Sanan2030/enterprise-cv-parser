@@ -42,7 +42,7 @@ Visit [http://localhost:8000/](http://localhost:8000/). Upload one PDF by button
 
 Vercel now uses the explicit `app.main:app` FastAPI entrypoint configured in `pyproject.toml`. Deploy the current `main` branch again from Vercel; the previous build used commit `7d62cae`, before the Vercel configuration. The runtime dependencies have been reduced so Vercel does not install OCR, spaCy, or Lingua packages by default.
 
-The deployed Vercel app parses **digital/text PDFs** in-process. Tesseract needs a system binary and is unavailable on Vercel Functions, so scanned/image-only PDFs return an extraction warning or no-readable-text error. For scanned PDF OCR, run this same project with Docker or locally and install the optional dependencies:
+The Vercel app parses digital PDFs and uses PyMuPDF's built-in Tesseract engine for English image-only PDFs, without a separate Tesseract executable. On the first OCR request it downloads the public `tessdata_fast` 4.1.0 English model (about 4 MB), checks a pinned SHA-256 checksum and caches only the model under `/tmp`. Candidate documents are not sent to the model host. Network failure or an OCR failure returns a readable JSON error. OCR has a pixel ceiling; native in-process OCR is bounded by the hosting platform's invocation limit, not the external Tesseract subprocess timeout. Decorative/low-resolution scans can still lose or misread fields. For multilingual OCR using installed English/Azerbaijani/Turkish/Russian packs, use Docker or install the optional local dependencies:
 
 ```bash
 pip install -e '.[ocr,nlp]'

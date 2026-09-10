@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from starlette.datastructures import UploadFile
 
 from app.core.config import settings
+from app.core.exceptions import CVParserException
 from app.core.logging import logger
 from app.schemas.dashboard import DashboardResponse
 from app.schemas.resume import ResumeParsedSchema
@@ -92,11 +93,16 @@ async def process_document(
                         stream.write(chunk)
                 if settings.IS_VERCEL:
                     data = source.read_bytes()
-                    resume = ResumeParserService().parse_pdf(data, file.filename)
-                    if dashboard:
-                        result = adapt_resume(resume)
-                    else:
-                        result = resume
+                    try:
+                        resume = ResumeParserService().parse_pdf(data, file.filename)
+                        result = adapt_resume(resume) if dashboard else resume
+                    except CVParserException as exc:
+                        raise HTTPException(exc.status_code, {"code": exc.code, "message": str(exc)}) from exc
+                    except Exception as exc:
+                        logger.bind(request_id=request_id, error_type=type(exc).__name__).error(
+                            "parse_failed"
+                        )
+                        raise HTTPException(500, "Document processing failed. Please retry.") from exc
                     logger.bind(request_id=request_id, serverless=True).info("parse_complete")
                     return result
                 process = await asyncio.create_subprocess_exec(

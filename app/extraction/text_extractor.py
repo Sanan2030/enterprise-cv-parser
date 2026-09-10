@@ -60,9 +60,12 @@ class PDFTextExtractor:
                             )
                 if PDFDetector.needs_ocr(page, blocks):
                     if settings.IS_VERCEL:
-                        warnings.append(
-                            f"Page {page.number + 1} needs OCR, which is unavailable on the Vercel deployment."
-                        )
+                        from app.extraction.serverless_ocr import ServerlessOCREngine
+
+                        ocr_blocks, ocr_warnings = ServerlessOCREngine().extract_page(page)
+                        warnings.extend(ocr_warnings)
+                        if ocr_blocks:
+                            blocks = ocr_blocks
                     else:
                         from app.extraction.ocr_engine import OCREngine
 

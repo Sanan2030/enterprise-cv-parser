@@ -1,0 +1,4 @@
+# Full matching installation. The default pyproject install uses lightweight TF-IDF.
+-e .
+scikit-learn>=1.5,<2
+sentence-transformers>=3.4,<6

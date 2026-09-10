@@ -1,4 +1,5 @@
 import os
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,6 +29,8 @@ class Settings(BaseSettings):
     LLM_THRESHOLD: float = Field(0.65, ge=0, le=1)
     LLM_MAX_CHARS: int = Field(30_000, ge=1000)
     IS_VERCEL: bool = os.getenv("VERCEL") == "1"
+    MATCH_SEMANTIC_BACKEND: Literal["auto", "tfidf"] = "auto"
+    MATCH_MODEL_LOCAL_ONLY: bool = True
 
 
 settings = Settings()

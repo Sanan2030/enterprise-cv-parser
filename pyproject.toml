@@ -14,10 +14,11 @@ dependencies = [
  "pymupdf>=1.24,<2", "pdfplumber>=0.11,<1",
  "dateparser>=1.2,<2", "phonenumbers>=8.13,<10",
  "rapidfuzz>=3.9,<4", "loguru>=0.7,<1",
- "python-multipart>=0.0.20,<1", "httpx>=0.28,<1"
+ "python-multipart>=0.0.20,<1", "httpx>=0.28,<1", "scikit-learn>=1.5,<2"
 ]
 
 [project.optional-dependencies]
+matching = ["sentence-transformers>=3.4,<6"]
 test = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.11,<1", "reportlab>=4,<5"]
 ocr = ["pytesseract>=0.3.13,<1", "pillow>=11,<13"]
 nlp = ["spacy>=3.8,<4", "lingua-language-detector>=2,<3"]

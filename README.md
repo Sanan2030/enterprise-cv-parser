@@ -205,3 +205,7 @@ pairs, and language proficiency labels on separate lines are supported heuristic
 Parenthetical skill explanations are not counted as individual skills. Missing CV
 facts remain empty; confidence values are evidence heuristics, not accuracy guarantees.
 Synthetic PDF regression tests cover these layouts without publishing private CVs.
+
+## Job compatibility matching
+
+Use `POST /api/v1/match-job` with parsed `cv_data` and `job_description` to receive a weighted compatibility score, missing skills, and recommendations. See [JOB_MATCHING.md](JOB_MATCHING.md) for API examples, model setup, scoring rules, and limitations.

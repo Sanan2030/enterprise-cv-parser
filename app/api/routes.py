@@ -10,18 +10,51 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from app.core.config import settings
 from app.core.exceptions import CVParserException
 from app.core.logging import logger
 from app.schemas.dashboard import DashboardResponse
+from app.schemas.job_match import JobMatchRequest, JobMatchResponse
 from app.schemas.resume import ResumeParsedSchema
 from app.services.dashboard_adapter import adapt_resume
 from app.services.resume_parser import ResumeParserService
 
 router = APIRouter()
 dashboard_router = APIRouter()
+
+
+def analyze_job(payload: JobMatchRequest) -> dict:
+    # Import optional ML libraries in the worker thread as well as running inference there.
+    from app.services.job_matcher import JobMatcherService
+
+    return JobMatcherService().analyze_compatibility(payload.cv_data, payload.job_description)
+
+
+@router.post("/match-job", response_model=JobMatchResponse)
+async def match_job_endpoint(payload: JobMatchRequest, request: Request) -> JobMatchResponse:
+    if settings.API_KEY and not hmac.compare_digest(
+        request.headers.get("x-api-key", ""), settings.API_KEY.get_secret_value()
+    ):
+        raise HTTPException(401, "Invalid API key.")
+    slots = request.app.state.parse_slots
+    if slots.locked():
+        raise HTTPException(503, "Analysis capacity reached; retry later.", headers={"Retry-After": "5"})
+    async with slots:
+        start = time.perf_counter()
+        try:
+            result = await run_in_threadpool(analyze_job, payload)
+        except Exception as exc:
+            logger.bind(error_type=type(exc).__name__).error("job_match_failed")
+            raise HTTPException(500, "Job compatibility analysis failed.") from exc
+        logger.bind(
+            semantic_method=result["semantic_method"], elapsed_ms=round((time.perf_counter() - start) * 1000)
+        ).info("job_match_complete")
+        return JobMatchResponse.model_validate(result)
+
+
 UPLOAD_SCHEMA = {
     "requestBody": {
         "required": True,

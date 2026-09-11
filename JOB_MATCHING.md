@@ -33,12 +33,29 @@ All component scores are 0–100. The `raw_match_percentage` is the following fi
 
 `0.40 × skill_match_score + 0.30 × semantic_similarity_score + 0.20 × experience_score + 0.10 × education_score`
 
-- **Skills:** percentage of recognized job skills documented in the candidate's professional evidence. Matches are case-insensitive with aliases such as JS/JavaScript, postgres/PostgreSQL, and k8s/Kubernetes. Known soft skills are excluded. Explicit `Required skills:` comma-separated lists support tools outside the curated vocabulary. An unrecognized hard-skill requirement may be missed; this is rule-based extraction, not unrestricted language understanding.
-- **Semantics:** cosine similarity using `sentence-transformers/all-MiniLM-L6-v2`. Token-based chunking and weighted pooling cover documents beyond a single model context window. If loading or encoding fails, scikit-learn TF-IDF cosine similarity is used. The response's `semantic_method` identifies the actual method. Negative cosine values are clamped to zero.
-- **Experience:** `min(candidate years / required years, 1) × 100`. Employment intervals are merged to avoid counting overlapping roles twice. Current positions end at today's UTC date. Invalid, future, and ambiguous intervals are excluded; month/year-only dates assume the first day and produce a warning. Years are elapsed days divided by 365.2425. Explicit requirements such as “3–5 years of experience” use the lower bound; multiple requirements use the largest lower bound. This compares total experience, not years in each specific skill or role.
-- **Education:** 100 when the documented level meets or exceeds the minimum recognized level, otherwise 0. Hierarchy: high school, associate, bachelor, master, doctorate. Recognized alternatives use the lowest acceptable level. Optional/preferred education clauses do not impose a penalty. Qualifications and completion status are not independently verified.
+The existing four numeric fields remain under `breakdown`. Four nested objects now provide their inputs:
 
-If no numeric experience or mandatory education requirement is recognized, that component is 100 (no constraint). If no hard skills are recognized, skill coverage is 0 with an explicit warning. Weights are never silently redistributed. Scores are compatibility indicators, not calibrated probabilities of job performance.
+| Parent field | Nested object and sub-scores | Fixed weights |
+|---|---|---|
+| `skill_match_score` | `skills`: `hard_skills_match`, `tools_and_frameworks_match`, `soft_skills_match` | 50%, 30%, 20% |
+| `semantic_similarity_score` | `context`: `domain_relevance`, `responsibilities_match`, `summary_alignment` | 30%, 50%, 20% |
+| `experience_score` | `experience`: `years_of_experience_fit`, `title_seniority_match`, `recency_factor` | 60%, 25%, 15% |
+| `education_score` | `education`: `degree_level_fit`, `field_of_study_relevance`, `certifications_match` | 60%, 25%, 15% |
+
+Each leaf is rounded to two decimals, then the parent is the rounded weighted sum of the returned leaves. The raw overall score aggregates the four returned parent scores using 40/30/20/10. Parent scores therefore intentionally differ from older releases. Existing scalar keys remain API-compatible; clients can additionally render the nested objects. The dashboard displays all 12 sub-scores.
+
+- **Hard skills and tools:** mandatory recognized skill coverage, with tools/frameworks partitioned from other technical skills. Docker, Git, databases, and known frameworks enter the tools category. Aliases and explicit custom skill lists remain supported. Unknown explicit skills default to the hard category.
+- **Soft skills:** recognized communication, leadership, teamwork, problem solving, critical thinking, Agile, Scrum, and Kanban coverage. Both native `soft_skills` and dashboard `skills.soft` are accepted. These do not inflate technical coverage.
+- **Domain:** coverage of recognized software, finance, healthcare, creative, hospitality, and engineering contexts. This is a curated contextual rule, not unrestricted industry understanding.
+- **Responsibilities and summary:** separately sanitized professional duties and summary are compared with positive job requirements using the configured semantic backend. Missing evidence scores zero. Optional cross-encoder refinement updates duties when present, otherwise summary; `model_routing.reranked_field` identifies the affected leaf. The context parent is always recomputed afterward.
+- **Years:** elapsed, merged work intervals divided by required years, capped at 100. Overlapping roles are not double counted; ongoing roles end at today's UTC date. Partial dates assume the first day. Missing, ambiguous, or reversed intervals contribute no years.
+- **Title/seniority:** recognized role overlap multiplied by documented seniority fit, taking the strongest past title. Levels are intern=1, junior=2, mid=3, senior=4, lead/principal/staff/director=5. Missing seniority scores zero when the JD explicitly requires it; no recognized role/seniority constraint scores 100. This coarse vocabulary does not establish equivalence between all engineering specialties.
+- **Recency:** the latest valid employment end date scores 100 for the first year, then decays with a five-year half-life: `100 * 2 ** (-max(0, years_since_end - 1) / 5)`. No valid work interval scores zero. This uses work dates, never candidate age.
+- **Degree:** documented level meeting the recognized minimum scores 100, otherwise zero. Hierarchy: high school, associate, bachelor, master, doctorate.
+- **Field:** coverage of recognized academic subjects found in degree/major fields against the JD. The initial vocabulary includes computing, software engineering, business, finance, medicine and engineering; grouped subjects are approximate.
+- **Certifications:** recognized required names matched only against the certification section, including aliases for PMP, CKA, AWS Solutions Architect, CISSP, CPA, Scrum Master, and CPR. Dashboard `certificateName`, native `certification_name`, `name`, and string entries are supported. This checks documented presence, not validity, expiry or verification of licenses. Unknown credentials are not automatically interpreted.
+
+No recognized requirement in a category means 100 (no constraint), not verified qualification. If no technical or soft requirements are recognized at all, all three skill leaves are zero. Missing summary, duties, or valid employment dates score zero. Optional requirements are excluded where recognized; requirement and negation detection remain rule-based. Weights are fixed and never redistributed. Scores are compatibility indicators, not calibrated probabilities of job performance.
 
 Final `match_percentage` applies explicit evidence guards after the weighted sum: documented hard exclusions yield 0; contradictory supported acronym domains cap the score at 9; zero recognized required-skill overlap caps it at the lower of 9 and 9% of the semantic component. `scoring_adjustments` explains every applied guard. These conservative caps can underestimate candidates whose skills fall outside the vocabulary.
 
@@ -48,7 +65,7 @@ Verdicts: **Highly Suitable ≥80**, **Suitable ≥60**, **Partially Suitable �
 
 The response includes `match_percentage`, `verdict`, `breakdown`, `skills_analysis` (`matched_skills`, `missing_skills`), and `recommendations`. Additional diagnostic fields expose `semantic_method`, `experience_analysis`, `education_analysis`, `warnings`, `raw_match_percentage`, `scoring_adjustments`, and `model_routing` so missing evidence, policy caps, and fallback scoring are visible.
 
-Only professional summary, hard skills, work titles/responsibilities, education degree/subject, and project descriptions/technologies enter matching. Personal information, contact data, filenames, parser confidence, and raw extraction metadata are excluded. No CV text is sent to an external inference API.
+Only professional summary, skills, work titles/responsibilities/dates, education degree/subject, certifications, and project descriptions/technologies enter matching. Personal information, contact data, filenames, parser confidence, and raw extraction metadata are excluded. No CV text is sent to an external inference API.
 
 ## Dependencies and model setup
 
@@ -72,7 +89,7 @@ Inputs are capped at 20,000 job-description characters and 100,000 serialized CV
 
 ## Dynamic reranking and resource policy
 
-A stage-one score between 40 and 70 inclusive, recognized exclusions, negation, or short uppercase acronyms routes the request to an optional cross-encoder. It replaces only the semantic component; hard exclusions and evidence caps still apply afterward. Pre-cache the actual public model identifier:
+A stage-one score between 40 and 70 inclusive, recognized exclusions, negation, or short uppercase acronyms routes the request to an optional cross-encoder. It refines only the duties or summary sub-score; hard exclusions and evidence caps still apply afterward. Pre-cache the actual public model identifier:
 
 ```bash
 python -c "from sentence_transformers import CrossEncoder; CrossEncoder('cross-encoder/ms-marco-MiniLM-L6-v2', device='cpu', trust_remote_code=False)"
@@ -100,3 +117,9 @@ The tests cover weighted scoring, real TF-IDF, skill aliases, explicit custom sk
 See [MATCH_HARD_REPORT.md](MATCH_HARD_REPORT.md) for adversarial results, full regression counts, real-model smoke evidence, and preserved baseline failures.
 
 Implementation references: [Sentence Transformers](https://sbert.net/docs/package_reference/sentence_transformer/model.html), [scikit-learn TF-IDF](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html).
+
+## Granular scoring validation
+
+`tests/test_job_matcher.py` verifies every nested leaf, exact fixed-weight aggregation, API serialization, category separation, missing evidence, certification aliases, degree/major mismatch, seniority, recency, and bounded inputs. `tests/job_matching_frontend.test.cjs` verifies nested score rendering. The prior hard-mode report describes the earlier release; numeric parent scores have intentionally changed in this release.
+
+Validation result for this release: **214 Python tests passed; 12 frontend tests passed**, including all 22 hard-mode adversarial/routing cases.

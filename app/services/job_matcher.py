@@ -17,6 +17,7 @@ from app.core.logging import logger
 from app.normalization.date_normalizer import CURRENT, DateNormalizer
 from app.parsing.skill_extractor import SKILL_TAXONOMY
 from app.schemas.job_match import CVEvidence, JobMatchRequest, JobMatchResponse
+from app.services import match_dimensions as dimensions
 from app.services.job_reranker import rerank
 from app.services.match_policy import clean_text, conflicting_domain, job_constraints, positive_evidence
 
@@ -96,7 +97,7 @@ def skills_in(text: str, extra: Sequence[str] = ()) -> set[str]:
             item = item.strip().rstrip(".")
             if 0 < len(item) <= 60 and len(item.split()) <= 4:
                 skills.add(canonical(item))
-    return skills - {canonical(s) for s in SKILL_TAXONOMY["soft_skills"]}
+    return skills - dimensions.SOFT
 
 
 @lru_cache(maxsize=2)
@@ -240,7 +241,6 @@ class JobMatcherService:
         job_skills = skills_in(positive_job, cv.skills) - forbidden
         matched = sorted(candidate_skills & job_skills)
         missing = sorted(job_skills - candidate_skills)
-        skill_score = 100 * len(matched) / len(job_skills) if job_skills else 0.0
         semantic_score, method, warnings = semantic_similarity(cv_text, positive_job)
         if sanitized:
             warnings.append("Instruction-like or repetitive content was excluded from scoring evidence.")
@@ -257,31 +257,109 @@ class JobMatcherService:
             )
         if needed is None:
             warnings.append(
-                "No numeric experience requirement recognized; experience imposes no penalty (100)."
+                "No numeric experience requirement recognized; years-of-experience fit imposes no penalty (100)."
             )
         if needed_level is None:
-            warnings.append("No mandatory education level recognized; education imposes no penalty (100).")
-        baseline = 0.4 * skill_score + 0.3 * semantic_score + 0.2 * experience_score + 0.1 * education_score
+            warnings.append(
+                "No mandatory education level recognized; degree-level fit imposes no penalty (100)."
+            )
+        duties = dimensions.evidence(
+            "\n".join(
+                job.responsibilities
+                if isinstance(job.responsibilities, str)
+                else "\n".join(job.responsibilities)
+                for job in cv.experience
+            )
+        )
+        summary = dimensions.evidence(cv.summary)
+        soft_text = dimensions.evidence("\n".join([cv_text, *cv.soft_skills]))
+        soft_vocabulary = {item: re.escape(item) for item in dimensions.SOFT}
+        required_soft = dimensions.recognized(positive_job, soft_vocabulary)
+        candidate_soft = dimensions.recognized(soft_text, soft_vocabulary)
+        required_tools = job_skills & dimensions.TOOLS
+        required_hard = job_skills - dimensions.TOOLS
+        skills_detail = {
+            "hard_skills_match": dimensions.coverage(candidate_skills, required_hard),
+            "tools_and_frameworks_match": dimensions.coverage(candidate_skills, required_tools),
+            "soft_skills_match": dimensions.coverage(candidate_soft, required_soft),
+        }
+        if not job_skills and not required_soft:
+            skills_detail = dict.fromkeys(skills_detail, 0.0)
+
+        def similarity(text: str) -> float:
+            if not text.strip():
+                return 0.0
+            value, _, notes = semantic_similarity(text, positive_job)
+            warnings.extend(notes)
+            return round(value, 2)
+
+        context_detail = {
+            "domain_relevance": dimensions.coverage(
+                dimensions.recognized(cv_text, dimensions.DOMAINS),
+                dimensions.recognized(positive_job, dimensions.DOMAINS),
+            ),
+            "responsibilities_match": similarity(duties),
+            "summary_alignment": similarity(summary),
+        }
+        experience_detail = {
+            "years_of_experience_fit": round(experience_score, 2),
+            "title_seniority_match": dimensions.title_fit(cv, positive_job),
+            "recency_factor": dimensions.recency(cv, datetime.now(timezone.utc).date()),
+        }
+        academic_text = dimensions.evidence(
+            "\n".join((entry.degree or "") + " " + (entry.field_of_study or "") for entry in cv.education)
+        )
+        credential_text = dimensions.evidence("\n".join(entry.name or "" for entry in cv.certifications))
+        education_detail = {
+            "degree_level_fit": education_score,
+            "field_of_study_relevance": dimensions.coverage(
+                dimensions.recognized(academic_text, dimensions.FIELDS),
+                dimensions.recognized(positive_job, dimensions.FIELDS),
+            ),
+            "certifications_match": dimensions.coverage(
+                dimensions.recognized(credential_text, dimensions.CERTIFICATES),
+                dimensions.recognized(positive_job, dimensions.CERTIFICATES),
+            ),
+        }
+        groups = {
+            "skills": skills_detail,
+            "context": context_detail,
+            "experience": experience_detail,
+            "education": education_detail,
+        }
+        keys = {
+            "skills": "skill_match_score",
+            "context": "semantic_similarity_score",
+            "experience": "experience_score",
+            "education": "education_score",
+        }
+        breakdown = {
+            **groups,
+            **{keys[group]: dimensions.aggregate(group, values) for group, values in groups.items()},
+        }
+        baseline = sum(weight * breakdown[key] for weight, key in zip((0.4, 0.3, 0.2, 0.1), keys.values()))
         domain_conflict = conflicting_domain(cv_text, description)
         complex_input = bool(
             forbidden or domain_conflict or re.search(r"\b[A-Z]{2,4}\b|\bnot\b", description)
         )
         routing = {"stage_1": method, "stage_2": "not_needed"}
-        if 40 <= baseline <= 70 or complex_input:
-            refined, reason = rerank(cv_text, positive_job)
+        if (40 <= baseline <= 70 or complex_input) and (duties or summary):
+            refined, reason = rerank(duties or summary, positive_job)
             routing["stage_2"] = reason
             if refined is not None:
-                semantic_score, method = refined, "cross-encoder"
+                field = "responsibilities_match" if duties else "summary_alignment"
+                context_detail[field] = round(refined, 2)
+                method = "cross-encoder"
+                routing["reranked_field"] = field
             else:
                 warnings.append(
                     "Contextual reranker unavailable within resource policy; deterministic guards and baseline scoring were used."
                 )
-        breakdown = {
-            "skill_match_score": round(skill_score, 2),
-            "semantic_similarity_score": round(semantic_score, 2),
-            "experience_score": round(experience_score, 2),
-            "education_score": round(education_score, 2),
-        }
+        breakdown["semantic_similarity_score"] = dimensions.aggregate("context", context_detail)
+        semantic_score = breakdown["semantic_similarity_score"]
+        warnings.append(
+            "Subcategories without recognized requirements score 100 (no constraint); missing summary, duties or valid work dates score 0. See documented aggregation weights."
+        )
         score = round(
             sum(
                 weight * breakdown[key]

@@ -202,7 +202,8 @@ def test_borderline_routes_to_reranker(evaluate, monkeypatch):
 
     def verify(r):
         assert r[0]["semantic_method"] == "cross-encoder"
-        assert r[0]["breakdown"]["semantic_similarity_score"] == 80
+        assert r[0]["breakdown"]["context"]["summary_alignment"] == 80
+        assert r[0]["breakdown"]["semantic_similarity_score"] == 46
 
     evaluate([(DEV, JD)], verify)
 

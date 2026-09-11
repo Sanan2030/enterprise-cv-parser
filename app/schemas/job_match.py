@@ -28,8 +28,16 @@ class EducationEvidence(EvidenceModel):
     )
 
 
+class CredentialEvidence(EvidenceModel):
+    name: Text | None = Field(
+        default="", validation_alias=AliasChoices("name", "certificateName", "certification_name")
+    )
+
+
 class CVEvidence(EvidenceModel):
     summary: Text = ""
+    soft_skills: list[Text] = Field(default_factory=list, max_length=500)
+    certifications: list[CredentialEvidence] = Field(default_factory=list, max_length=100)
     skills: list[Text] = Field(default_factory=list, max_length=500)
     experience: list[WorkEvidence] = Field(default_factory=list, max_length=200)
     education: list[EducationEvidence] = Field(default_factory=list, max_length=100)
@@ -43,9 +51,16 @@ class CVEvidence(EvidenceModel):
         data = dict(value)
         raw_skills = data.get("skills", {})
         skills = []
+        soft = data.get("soft_skills", [])
+        if not isinstance(soft, list):
+            raise ValueError("soft_skills must be a list")
+        soft = list(soft)
         if isinstance(raw_skills, dict):
             for category, entries in raw_skills.items():
                 if category in {"soft", "soft_skills"}:
+                    if not isinstance(entries, list):
+                        raise ValueError("Soft skills must be a list")
+                    soft.extend(entry.get("name") if isinstance(entry, dict) else entry for entry in entries)
                     continue
                 if not isinstance(entries, list):
                     raise ValueError("Each skill category must contain a list")
@@ -56,6 +71,11 @@ class CVEvidence(EvidenceModel):
         else:
             raise ValueError("skills must be an object or list")
         data["skills"] = skills
+        data["soft_skills"] = soft
+        credentials = data.get("certifications", [])
+        if not isinstance(credentials, list):
+            raise ValueError("certifications must be a list")
+        data["certifications"] = [{"name": item} if isinstance(item, str) else item for item in credentials]
         profile = data.get("professional_profile", {})
         if not isinstance(profile, dict):
             raise ValueError("professional_profile must be an object")
@@ -90,6 +110,8 @@ class CVEvidence(EvidenceModel):
             or self.experience
             or self.education
             or self.project_text
+            or self.soft_skills
+            or self.certifications
         ):
             raise ValueError("cv_data must contain skills, work history, education, projects, or a summary")
         return self
@@ -121,7 +143,35 @@ class JobMatchRequest(BaseModel):
         return value
 
 
+class SkillsBreakdown(BaseModel):
+    hard_skills_match: Score
+    tools_and_frameworks_match: Score
+    soft_skills_match: Score
+
+
+class ContextBreakdown(BaseModel):
+    domain_relevance: Score
+    responsibilities_match: Score
+    summary_alignment: Score
+
+
+class ExperienceBreakdown(BaseModel):
+    years_of_experience_fit: Score
+    title_seniority_match: Score
+    recency_factor: Score
+
+
+class EducationBreakdown(BaseModel):
+    degree_level_fit: Score
+    field_of_study_relevance: Score
+    certifications_match: Score
+
+
 class MatchBreakdown(BaseModel):
+    skills: SkillsBreakdown
+    context: ContextBreakdown
+    experience: ExperienceBreakdown
+    education: EducationBreakdown
     skill_match_score: Score
     semantic_similarity_score: Score
     experience_score: Score

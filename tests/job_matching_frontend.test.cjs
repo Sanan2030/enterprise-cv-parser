@@ -71,3 +71,11 @@ test('untrusted score values are rejected and skill text is rendered as text',as
   assert.equal(list.children[0].tag,'li');
   assert.equal(list.children[0].textContent,'<img src=x onerror=alert(1)>');
 });
+
+test('nested match scores appear inside their parent card', async()=>{
+  const c=setup(async()=>({ok:true,json:async()=>({...result,breakdown:{...result.breakdown,skills:{hard_skills_match:75,tools_and_frameworks_match:50,soft_skills_match:100}}})}));
+  await c.run('analyzeJobCompatibility()');
+  const card=c.$('jobMatchBreakdown').children[0];
+  assert.ok(card.children.some(child=>child.textContent==='hard skills match: 75.0%'));
+  assert.ok(card.children.some(child=>child.textContent==='tools and frameworks match: 50.0%'));
+});

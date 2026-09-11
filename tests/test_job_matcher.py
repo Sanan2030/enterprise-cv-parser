@@ -43,8 +43,13 @@ def test_weighted_formula_and_missing_skills(cv):
     )
     JobMatchResponse.model_validate(result)
     b = result["breakdown"]
-    assert b["skill_match_score"] == 60
-    assert b["experience_score"] == b["education_score"] == 100
+    assert b["skills"] == {
+        "hard_skills_match": 100,
+        "tools_and_frameworks_match": 50,
+        "soft_skills_match": 100,
+    }
+    assert b["skill_match_score"] == 85
+    assert b["experience"]["years_of_experience_fit"] == b["education_score"] == 100
     assert result["match_percentage"] == round(
         0.4 * b["skill_match_score"]
         + 0.3 * b["semantic_similarity_score"]
@@ -122,8 +127,9 @@ def test_education_and_unknown_requirements(cv):
     result = matcher.JobMatcherService().analyze_compatibility(
         cv, "Python; Master degree required; 10 years of experience"
     )
-    assert result["breakdown"]["education_score"] == 0
-    assert result["breakdown"]["experience_score"] == pytest.approx(50, abs=0.1)
+    assert result["breakdown"]["education"]["degree_level_fit"] == 0
+    assert result["breakdown"]["education_score"] == 40
+    assert result["breakdown"]["experience"]["years_of_experience_fit"] == pytest.approx(50, abs=0.1)
     assert matcher.degree_level("Bachelor or Master degree", requirement=True) == (3, "Bachelor")
     assert matcher.degree_level("Master preferred", requirement=True) == (None, None)
     no_requirements = matcher.JobMatcherService().analyze_compatibility(cv, "Manage the team")
@@ -239,3 +245,123 @@ def test_api_capacity(client, cv, monkeypatch):
     monkeypatch.setattr(client.app.state, "parse_slots", Full())
     response = client.post("/api/v1/match-job", json={"cv_data": cv, "job_description": "Python"})
     assert response.status_code == 503 and response.headers["retry-after"] == "5"
+
+
+def test_all_nested_scores_and_exact_aggregation(cv):
+    from app.services.match_dimensions import WEIGHTS
+
+    result = matcher.JobMatcherService().analyze_compatibility(
+        cv, "Python Docker Agile senior developer; Master in Computer Science; PMP required"
+    )
+    b = result["breakdown"]
+    mapping = {
+        "skills": "skill_match_score",
+        "context": "semantic_similarity_score",
+        "experience": "experience_score",
+        "education": "education_score",
+    }
+    for group, weights in WEIGHTS.items():
+        assert set(b[group]) == set(weights)
+        assert all(0 <= value <= 100 for value in b[group].values())
+        assert b[mapping[group]] == round(sum(b[group][key] * weight for key, weight in weights.items()), 2)
+    assert result["raw_match_percentage"] == round(
+        sum(b[key] * weight for key, weight in zip(mapping.values(), (0.4, 0.3, 0.2, 0.1))), 2
+    )
+    b["skills"]["hard_skills_match"] = 101
+    with pytest.raises(ValidationError):
+        JobMatchResponse.model_validate(result)
+
+
+def test_independent_skill_categories(cv):
+    cv["skills"]["soft"] = ["Agile", "Leadership"]
+    result = matcher.JobMatcherService().analyze_compatibility(
+        cv, "Required skills: Python, Java, Docker, Redis; Agile and Leadership required"
+    )
+    assert result["breakdown"]["skills"] == {
+        "hard_skills_match": 50,
+        "tools_and_frameworks_match": 50,
+        "soft_skills_match": 100,
+    }
+    assert result["breakdown"]["skill_match_score"] == 60
+
+
+def test_credentials_and_major_are_mapped(cv):
+    cv["certifications"] = [{"certificateName": "Project Management Professional"}]
+    result = matcher.JobMatcherService().analyze_compatibility(
+        cv, "Python; Bachelor in Computer Science; PMP and CKA required"
+    )
+    assert result["breakdown"]["education"] == {
+        "degree_level_fit": 100,
+        "field_of_study_relevance": 100,
+        "certifications_match": 50,
+    }
+    assert result["breakdown"]["education_score"] == 92.5
+    native = CVEvidence.model_validate(
+        {"certifications": [{"certification_name": "PMP"}, {"certification_name": None}]}
+    )
+    assert native.certifications[0].name == "PMP"
+
+
+def test_missing_major_and_optional_credential(cv):
+    cv["education"] = [{"degree": "Bachelor of Science", "fieldOfStudy": "Culinary Arts"}]
+    result = matcher.JobMatcherService().analyze_compatibility(
+        cv, "Python; Bachelor in Computer Science; PMP optional"
+    )
+    assert result["breakdown"]["education"]["field_of_study_relevance"] == 0
+    assert result["breakdown"]["education"]["certifications_match"] == 100
+
+
+def test_title_and_recency_use_work_evidence():
+    from app.services.match_dimensions import recency, title_fit
+
+    recent = CVEvidence.model_validate(
+        {"experience": [{"position": "Senior Developer", "startDate": "2020-01-01", "endDate": "Present"}]}
+    )
+    old = CVEvidence.model_validate(
+        {"experience": [{"position": "Junior Developer", "startDate": "2010-01-01", "endDate": "2015-01-01"}]}
+    )
+    today = date(2026, 1, 1)
+    assert title_fit(recent, "Senior Developer") == 100
+    assert title_fit(old, "Senior Developer") == 50
+    assert title_fit(recent, "Senior Nurse") == 0
+    assert recency(recent, today) == 100
+    assert 0 < recency(old, today) < 30
+    missing = CVEvidence.model_validate({"experience": [{"position": "Senior Developer"}]})
+    assert recency(missing, today) == 0
+
+
+def test_summary_and_duties_score_separately(cv):
+    cv["summary"] = "Python software backend developer"
+    cv["experience"][0]["responsibilities"] = "Prepared restaurant meals"
+    result = matcher.JobMatcherService().analyze_compatibility(cv, "Python software backend developer")
+    detail = result["breakdown"]["context"]
+    assert detail["summary_alignment"] == 100
+    assert detail["responsibilities_match"] == 0
+    assert detail["domain_relevance"] == 100
+
+
+def test_empty_evidence_does_not_invent_semantic_matches():
+    result = matcher.JobMatcherService().analyze_compatibility(
+        {"skills": ["Python"]}, "Python software developer"
+    )
+    assert result["breakdown"]["context"] == {
+        "domain_relevance": 0,
+        "responsibilities_match": 0,
+        "summary_alignment": 0,
+    }
+    assert result["breakdown"]["experience"]["recency_factor"] == 0
+
+
+def test_nested_api_response(client, cv):
+    result = client.post(
+        "/api/v1/match-job", json={"cv_data": cv, "job_description": "Python Docker developer"}
+    )
+    assert result.status_code == 200
+    b = result.json()["breakdown"]
+    assert all(len(b[group]) == 3 for group in ("skills", "context", "experience", "education"))
+
+
+@pytest.mark.parametrize("bad", [{"soft_skills": 42}, {"certifications": 42}, {"skills": {"soft": 42}}])
+def test_new_evidence_validation(bad):
+    with pytest.raises(ValidationError):
+        JobMatchRequest(cv_data={"summary": "Python developer", **bad}, job_description="Python")

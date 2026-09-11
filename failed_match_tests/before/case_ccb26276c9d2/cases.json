@@ -1,0 +1,58 @@
+[
+  {
+    "cv_data": {
+      "summary": "Senior Chef preparing menus and leading restaurant kitchen teams.",
+      "experience": [
+        {
+          "position": "Senior Chef",
+          "startDate": "2010-01",
+          "endDate": "2025-01",
+          "responsibilities": "Prepared meals and managed food safety."
+        }
+      ],
+      "education": [
+        {
+          "degree": "Bachelor in Culinary Arts"
+        }
+      ]
+    },
+    "job_description": "Lead DevOps Engineer. Python Docker Kubernetes Terraform AWS. 5 years of experience. Bachelor required.",
+    "response": {
+      "match_percentage": 30.44,
+      "verdict": "Low Compatibility",
+      "breakdown": {
+        "skill_match_score": 0.0,
+        "semantic_similarity_score": 1.48,
+        "experience_score": 100.0,
+        "education_score": 100.0
+      },
+      "skills_analysis": {
+        "matched_skills": [],
+        "missing_skills": [
+          "AWS",
+          "Docker",
+          "Kubernetes",
+          "Python",
+          "Terraform"
+        ]
+      },
+      "recommendations": [
+        "Missing documented skills: AWS, Docker, Kubernetes, Python, Terraform.",
+        "Documented experience: 15.00 years; required: 5 years. Requirement met."
+      ],
+      "semantic_method": "tfidf",
+      "experience_analysis": {
+        "candidate_years": 15.0,
+        "required_years": 5.0
+      },
+      "education_analysis": {
+        "candidate_level": "Bachelor",
+        "required_level": "Bachelor"
+      },
+      "warnings": [
+        "TF-IDF measures lexical overlap; contextual embeddings were unavailable or disabled.",
+        "Experience based on month/year-only dates is approximate (first day assumed)."
+      ]
+    }
+  }
+]

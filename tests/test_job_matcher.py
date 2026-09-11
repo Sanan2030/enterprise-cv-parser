@@ -14,6 +14,9 @@ from app.services.resume_parser import ResumeParserService
 @pytest.fixture(autouse=True)
 def lexical_backend(monkeypatch):
     monkeypatch.setattr(settings, "MATCH_SEMANTIC_BACKEND", "tfidf")
+    from app.services import job_reranker
+
+    monkeypatch.setattr(job_reranker, "model_cached", lambda: False)
 
 
 @pytest.fixture
@@ -71,7 +74,9 @@ def test_unknown_explicit_skill(cv):
 
 
 def test_conjoined_skill_list(cv):
-    result = matcher.JobMatcherService().analyze_compatibility(cv, "Required skills: Python, FastAPI and Docker")
+    result = matcher.JobMatcherService().analyze_compatibility(
+        cv, "Required skills: Python, FastAPI and Docker"
+    )
     assert result["breakdown"]["skill_match_score"] == 100
     assert result["skills_analysis"]["missing_skills"] == []
 

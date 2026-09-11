@@ -1,0 +1,46 @@
+[
+  {
+    "cv_data": {
+      "summary": "Creative Production Review (CPR) in advertising campaigns and film production.",
+      "skills": {
+        "technical": [
+          "CPR"
+        ]
+      }
+    },
+    "job_description": "Emergency medicine nurse. Cardiopulmonary resuscitation (CPR) required for patient care.",
+    "response": {
+      "match_percentage": 71.32,
+      "verdict": "Suitable",
+      "breakdown": {
+        "skill_match_score": 100.0,
+        "semantic_similarity_score": 4.41,
+        "experience_score": 100.0,
+        "education_score": 100.0
+      },
+      "skills_analysis": {
+        "matched_skills": [
+          "Cpr"
+        ],
+        "missing_skills": []
+      },
+      "recommendations": [
+        "Review the supporting CV evidence and role-specific requirements."
+      ],
+      "semantic_method": "tfidf",
+      "experience_analysis": {
+        "candidate_years": 0.0,
+        "required_years": null
+      },
+      "education_analysis": {
+        "candidate_level": null,
+        "required_level": null
+      },
+      "warnings": [
+        "TF-IDF measures lexical overlap; contextual embeddings were unavailable or disabled.",
+        "No numeric experience requirement recognized; experience imposes no penalty (100).",
+        "No mandatory education level recognized; education imposes no penalty (100)."
+      ]
+    }
+  }
+]

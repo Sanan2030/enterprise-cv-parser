@@ -1,0 +1,19 @@
+✔ durations handle ongoing jobs, leap dates and missing precision (1.741729ms)
+✔ editing dates updates calculated duration and exported data (0.981672ms)
+✔ JSON exports include edited nested fields and table cells (0.266983ms)
+✔ CSV neutralizes formula prefixes and escapes quotes (0.264749ms)
+✔ CSV retains unicode, newline text, arrays and empty collections (0.369508ms)
+✔ TXT exports all nested categories rather than just summary (0.269847ms)
+✔ panel opens for extracted CV and posts current edits with configured URL and key (3.726496ms)
+✔ changing CV or requirements discards an in-flight response (1.004426ms)
+✔ API validation errors allow retry and do not display a score (0.825667ms)
+✔ empty requirements prevent requests and reset hides panel and score (0.790233ms)
+✔ untrusted score values are rejected and skill text is rendered as text (1.493686ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 96.051968

@@ -29,7 +29,7 @@ Frontend regression checks: `node --test tests/frontend.test.cjs tests/job_match
 
 ## Scores
 
-All component scores are 0–100. The overall value is the following fixed weighted sum, rounded to two decimals:
+All component scores are 0–100. The `raw_match_percentage` is the following fixed weighted sum, rounded to two decimals:
 
 `0.40 × skill_match_score + 0.30 × semantic_similarity_score + 0.20 × experience_score + 0.10 × education_score`
 
@@ -40,11 +40,13 @@ All component scores are 0–100. The overall value is the following fixed weigh
 
 If no numeric experience or mandatory education requirement is recognized, that component is 100 (no constraint). If no hard skills are recognized, skill coverage is 0 with an explicit warning. Weights are never silently redistributed. Scores are compatibility indicators, not calibrated probabilities of job performance.
 
+Final `match_percentage` applies explicit evidence guards after the weighted sum: documented hard exclusions yield 0; contradictory supported acronym domains cap the score at 9; zero recognized required-skill overlap caps it at the lower of 9 and 9% of the semantic component. `scoring_adjustments` explains every applied guard. These conservative caps can underestimate candidates whose skills fall outside the vocabulary.
+
 Verdicts: **Highly Suitable ≥80**, **Suitable ≥60**, **Partially Suitable ≥40**, otherwise **Low Compatibility**.
 
 ## Response
 
-The response includes `match_percentage`, `verdict`, `breakdown`, `skills_analysis` (`matched_skills`, `missing_skills`), and `recommendations`. Additional diagnostic fields expose `semantic_method`, `experience_analysis`, `education_analysis`, and `warnings` so missing evidence or fallback scoring is visible.
+The response includes `match_percentage`, `verdict`, `breakdown`, `skills_analysis` (`matched_skills`, `missing_skills`), and `recommendations`. Additional diagnostic fields expose `semantic_method`, `experience_analysis`, `education_analysis`, `warnings`, `raw_match_percentage`, `scoring_adjustments`, and `model_routing` so missing evidence, policy caps, and fallback scoring are visible.
 
 Only professional summary, hard skills, work titles/responsibilities, education degree/subject, and project descriptions/technologies enter matching. Personal information, contact data, filenames, parser confidence, and raw extraction metadata are excluded. No CV text is sent to an external inference API.
 
@@ -68,15 +70,33 @@ Set `MATCH_SEMANTIC_BACKEND=tfidf` to force lexical scoring. Set `MATCH_MODEL_LO
 
 Inputs are capped at 20,000 job-description characters and 100,000 serialized CV characters, with bounded nested collections. Invalid input returns 422, invalid configured API keys return 401, and exhausted shared analysis capacity returns 503. CPU work runs off the async event loop. Logs contain timings and backend names, not document text.
 
+## Dynamic reranking and resource policy
+
+A stage-one score between 40 and 70 inclusive, recognized exclusions, negation, or short uppercase acronyms routes the request to an optional cross-encoder. It replaces only the semantic component; hard exclusions and evidence caps still apply afterward. Pre-cache the actual public model identifier:
+
+```bash
+python -c "from sentence_transformers import CrossEncoder; CrossEncoder('cross-encoder/ms-marco-MiniLM-L6-v2', device='cpu', trust_remote_code=False)"
+```
+
+The reranker runs offline in a separate CPU worker. TF-IDF retrieves up to two CV passages for each of the beginning, middle, and end JD chunks. This bounds inference but does not exhaustively evaluate every clause of a long JD. MS-MARCO relevance logits are sigmoid-transformed; the result is not a calibrated hiring probability.
+
+- `MATCH_RERANK_ENABLED=true`: enable optional routing.
+- `MATCH_RERANK_TIMEOUT=8`: worker deadline in seconds (1–30).
+- `MATCH_RERANK_MEMORY_MB=4096`: POSIX address-space limit in MiB (512–16384), not measured resident memory. Windows uses the deadline without this memory limit.
+- Serverless/Vercel requests use TF-IDF and skip the heavy reranker. Combined semantic input above 32,000 characters also skips stage-one embeddings.
+- Missing local models, worker failure, memory errors, invalid predictions, and timeouts preserve baseline scoring plus deterministic guards. Responses and structured logs expose the routing reason without logging CV contents.
+
+Instruction-like lines, invisible format characters, exact duplicate clauses, duplicate explicit skills, and highly repetitive unpunctuated keyword lines are normalized or removed. Recognized negated experience is excluded from positive evidence. These are bounded rules, not a guarantee against every adversarial rewrite. Explicit CPR and BA domain conflicts are recognized; arbitrary acronym disambiguation is not guaranteed. English/Azerbaijani/Turkish tests verify shared technical skill retention, not unrestricted translation.
+
 ## Validation
 
 ```bash
-python -m pytest tests/test_job_matcher.py -q
+python -m pytest tests/test_job_matcher.py tests/test_job_matcher_hard.py -q
 python -m pytest -q
 ```
 
 The tests cover weighted scoring, real TF-IDF, skill aliases, explicit custom skills, overlapping/current employment, multilingual year expressions, education levels, demographic-field invariance, both parser response formats, embedding chunking/failure handling, request validation, API authentication, and capacity handling. Embedding contract tests use controlled encoders; model-download/inference smoke tests are run separately when the real model is available.
 
-Feature validation: 181 Python tests and 6 frontend tests passed. A separate real `all-MiniLM-L6-v2` smoke test checks related versus unrelated text and the complete weighted service response.
+See [MATCH_HARD_REPORT.md](MATCH_HARD_REPORT.md) for adversarial results, full regression counts, real-model smoke evidence, and preserved baseline failures.
 
 Implementation references: [Sentence Transformers](https://sbert.net/docs/package_reference/sentence_transformer/model.html), [scikit-learn TF-IDF](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html).

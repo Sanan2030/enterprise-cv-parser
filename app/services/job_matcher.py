@@ -17,6 +17,8 @@ from app.core.logging import logger
 from app.normalization.date_normalizer import CURRENT, DateNormalizer
 from app.parsing.skill_extractor import SKILL_TAXONOMY
 from app.schemas.job_match import CVEvidence, JobMatchRequest, JobMatchResponse
+from app.services.job_reranker import rerank
+from app.services.match_policy import clean_text, conflicting_domain, job_constraints, positive_evidence
 
 MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 _model_lock = Lock()
@@ -34,6 +36,8 @@ ALIASES = {
     "c sharp": "c#",
 }
 NAMES = {
+    "php": "PHP",
+    "cpr": "CPR",
     "fastapi": "FastAPI",
     "javascript": "JavaScript",
     "typescript": "TypeScript",
@@ -118,7 +122,11 @@ def tfidf_similarity(cv_text: str, description: str) -> float:
 
 
 def semantic_similarity(cv_text: str, description: str) -> tuple[float, str, list[str]]:
-    if settings.MATCH_SEMANTIC_BACKEND != "tfidf":
+    if (
+        settings.MATCH_SEMANTIC_BACKEND != "tfidf"
+        and not settings.IS_VERCEL
+        and len(cv_text) + len(description) <= 32_000
+    ):
         with _model_lock:
             model = embedding_model(settings.MATCH_MODEL_LOCAL_ONLY)
             if model is not None:
@@ -213,6 +221,7 @@ class JobMatcherService:
     def analyze_compatibility(self, cv_data: dict, job_description: str) -> dict:
         request = JobMatchRequest(cv_data=cv_data, job_description=job_description)
         cv = CVEvidence.model_validate(request.cv_data)
+        cv.skills = list(dict.fromkeys(clean_text(skill)[0] for skill in cv.skills if clean_text(skill)[0]))
         # Only professional evidence enters scoring; identity, contacts and demographics do not.
         text_parts = [cv.summary, *cv.skills, *cv.project_text]
         for job in cv.experience:
@@ -223,12 +232,18 @@ class JobMatcherService:
         for education in cv.education:
             text_parts.extend([education.degree or "", education.field_of_study or ""])
         cv_text = "\n".join(part for part in text_parts if part)
+        cv_text, sanitized = clean_text(cv_text)
+        cv_text = positive_evidence(cv_text)
+        description, _ = clean_text(request.job_description)
+        positive_job, forbidden = job_constraints(description, skills_in)
         candidate_skills = skills_in(cv_text, cv.skills) | {canonical(s) for s in cv.skills if s.strip()}
-        job_skills = skills_in(request.job_description, cv.skills)
+        job_skills = skills_in(positive_job, cv.skills) - forbidden
         matched = sorted(candidate_skills & job_skills)
         missing = sorted(job_skills - candidate_skills)
         skill_score = 100 * len(matched) / len(job_skills) if job_skills else 0.0
-        semantic_score, method, warnings = semantic_similarity(cv_text, request.job_description)
+        semantic_score, method, warnings = semantic_similarity(cv_text, positive_job)
+        if sanitized:
+            warnings.append("Instruction-like or repetitive content was excluded from scoring evidence.")
         years, date_warnings = experience_years(cv, datetime.now(timezone.utc).date())
         warnings.extend(date_warnings)
         needed = required_years(request.job_description)
@@ -246,6 +261,21 @@ class JobMatcherService:
             )
         if needed_level is None:
             warnings.append("No mandatory education level recognized; education imposes no penalty (100).")
+        baseline = 0.4 * skill_score + 0.3 * semantic_score + 0.2 * experience_score + 0.1 * education_score
+        domain_conflict = conflicting_domain(cv_text, description)
+        complex_input = bool(
+            forbidden or domain_conflict or re.search(r"\b[A-Z]{2,4}\b|\bnot\b", description)
+        )
+        routing = {"stage_1": method, "stage_2": "not_needed"}
+        if 40 <= baseline <= 70 or complex_input:
+            refined, reason = rerank(cv_text, positive_job)
+            routing["stage_2"] = reason
+            if refined is not None:
+                semantic_score, method = refined, "cross-encoder"
+            else:
+                warnings.append(
+                    "Contextual reranker unavailable within resource policy; deterministic guards and baseline scoring were used."
+                )
         breakdown = {
             "skill_match_score": round(skill_score, 2),
             "semantic_similarity_score": round(semantic_score, 2),
@@ -264,7 +294,25 @@ class JobMatcherService:
             ),
             2,
         )
+        raw_score = score
+        adjustments = []
+        violations = sorted(candidate_skills & forbidden)
+        if violations:
+            score = 0.0
+            adjustments.append("Hard exclusion violated: " + ", ".join(display(s) for s in violations))
+        elif domain_conflict:
+            score = min(score, 9.0)
+            adjustments.append("Explicit acronym domain conflict: compatibility capped below 10%.")
+        elif not matched:
+            score = min(score, 9.0, semantic_score * 0.09)
+            adjustments.append(
+                "No documented required hard-skill overlap: unrelated experience and education cannot establish compatibility."
+            )
+        logger.bind(
+            stage_1=routing["stage_1"], stage_2=routing["stage_2"], adjustments=len(adjustments)
+        ).info("job_match_routing")
         recommendations = []
+        recommendations.extend(adjustments)
         if missing:
             recommendations.append(
                 "Missing documented skills: " + ", ".join(display(s) for s in missing) + "."
@@ -303,4 +351,7 @@ class JobMatcherService:
             experience_analysis={"candidate_years": round(years, 2), "required_years": needed},
             education_analysis={"candidate_level": candidate_degree, "required_level": needed_degree},
             warnings=list(dict.fromkeys(warnings)),
+            raw_match_percentage=raw_score,
+            scoring_adjustments=adjustments,
+            model_routing=routing,
         ).model_dump()

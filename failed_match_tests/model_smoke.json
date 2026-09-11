@@ -1,0 +1,13 @@
+{
+  "cv": "Built Python FastAPI APIs using Docker containers.",
+  "job_description": "Python FastAPI backend developer",
+  "model": "cross-encoder/ms-marco-MiniLM-L6-v2",
+  "score": 68.23090314865112,
+  "routing": "cross_encoder",
+  "stage_1_score": 19.048427711176064,
+  "stage_1_method": "tfidf",
+  "warnings": [
+    "TF-IDF measures lexical overlap; contextual embeddings were unavailable or disabled."
+  ],
+  "elapsed_seconds": 8.586
+}

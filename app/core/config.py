@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     IS_VERCEL: bool = os.getenv("VERCEL") == "1"
     MATCH_SEMANTIC_BACKEND: Literal["auto", "tfidf"] = "auto"
     MATCH_MODEL_LOCAL_ONLY: bool = True
+    MATCH_RERANK_ENABLED: bool = True
+    MATCH_RERANK_TIMEOUT: int = Field(8, ge=1, le=30)
+    MATCH_RERANK_MEMORY_MB: int = Field(4096, ge=512, le=16384)
 
 
 settings = Settings()

@@ -139,7 +139,10 @@ class JobMatchResponse(BaseModel):
     breakdown: MatchBreakdown
     skills_analysis: SkillsAnalysis
     recommendations: list[str]
-    semantic_method: Literal["sentence-transformers", "tfidf"]
+    semantic_method: Literal["sentence-transformers", "tfidf", "cross-encoder"]
     experience_analysis: dict[str, float | None]
     education_analysis: dict[str, str | None]
     warnings: list[str]
+    raw_match_percentage: Score = 0
+    scoring_adjustments: list[str] = Field(default_factory=list)
+    model_routing: dict[str, str] = Field(default_factory=dict)

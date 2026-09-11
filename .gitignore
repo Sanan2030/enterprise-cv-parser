@@ -16,3 +16,7 @@ build/
 *.egg-info/
 *.pdf
 *.log
+
+# Preserve requested adversarial failure evidence.
+!failed_match_tests/**/*.log
+!failed_match_tests/*.log

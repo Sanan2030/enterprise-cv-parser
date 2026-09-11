@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/cd212e8efe81/enterprise-cv-parser/tests/test_job_matcher_hard.py", line 27, in run
+    assertion([r["response"] for r in records])
+  File "/workspace/scratch/cd212e8efe81/enterprise-cv-parser/tests/test_job_matcher_hard.py", line 73, in verify
+    assert r[0]["skills_analysis"]["matched_skills"] == []
+AssertionError: assert ['FastAPI', 'Python'] == []
+  
+  Left contains 2 more items, first extra item: 'FastAPI'
+  Use -v to get more diff

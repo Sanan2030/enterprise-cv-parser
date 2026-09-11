@@ -1,0 +1,50 @@
+[
+  {
+    "cv_data": {
+      "summary": "Built PHP applications for ten years. Python FastAPI engineer.",
+      "skills": {
+        "technical": [
+          "PHP",
+          "Python",
+          "FastAPI"
+        ]
+      }
+    },
+    "job_description": "Must NOT have PHP experience; strictly required Python/FastAPI",
+    "response": {
+      "match_percentage": 75.82,
+      "verdict": "Suitable",
+      "breakdown": {
+        "skill_match_score": 100.0,
+        "semantic_similarity_score": 19.39,
+        "experience_score": 100.0,
+        "education_score": 100.0
+      },
+      "skills_analysis": {
+        "matched_skills": [
+          "FastAPI",
+          "Php",
+          "Python"
+        ],
+        "missing_skills": []
+      },
+      "recommendations": [
+        "Review the supporting CV evidence and role-specific requirements."
+      ],
+      "semantic_method": "tfidf",
+      "experience_analysis": {
+        "candidate_years": 0.0,
+        "required_years": null
+      },
+      "education_analysis": {
+        "candidate_level": null,
+        "required_level": null
+      },
+      "warnings": [
+        "TF-IDF measures lexical overlap; contextual embeddings were unavailable or disabled.",
+        "No numeric experience requirement recognized; experience imposes no penalty (100).",
+        "No mandatory education level recognized; education imposes no penalty (100)."
+      ]
+    }
+  }
+]

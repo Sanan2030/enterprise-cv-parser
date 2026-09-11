@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/cd212e8efe81/enterprise-cv-parser/tests/test_job_matcher_hard.py", line 27, in run
+    assertion([r["response"] for r in records])
+  File "/workspace/scratch/cd212e8efe81/enterprise-cv-parser/tests/test_job_matcher_hard.py", line 39, in equal_scores
+    assert abs(results[0]["match_percentage"] - results[1]["match_percentage"]) <= .01
+AssertionError: assert 42.86999999999999 <= 0.01
+ +  where 42.86999999999999 = abs((30.48 - 73.35))

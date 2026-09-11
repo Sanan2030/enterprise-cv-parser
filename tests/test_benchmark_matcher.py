@@ -14,7 +14,7 @@ DATASET = Path(__file__).parent / "fixtures" / "job_match_benchmark.json"
 
 @pytest.fixture(scope="module")
 def benchmark():
-    return run_benchmark(DATASET)
+    return run_benchmark(DATASET, backend="tfidf")
 
 
 @pytest.mark.parametrize("index", range(10))
@@ -80,7 +80,7 @@ def test_failure_recorded_without_stopping_batch(monkeypatch):
         return original(self, cv, jd)
 
     monkeypatch.setattr(JobMatcherService, "analyze_compatibility", fail_one)
-    report = run_benchmark(DATASET)
+    report = run_benchmark(DATASET, backend="tfidf")
     assert report["summary"]["executed_successfully"] == 9
     assert report["summary"]["final_status"] == "FAIL"
     assert "Synthetic execution failure" in report["results"][-1]["traceback"]

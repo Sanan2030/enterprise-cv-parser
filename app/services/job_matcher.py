@@ -244,31 +244,34 @@ class JobMatcherService:
         semantic_score, method, warnings = semantic_similarity(cv_text, positive_job)
         if sanitized:
             warnings.append("Instruction-like or repetitive content was excluded from scoring evidence.")
-        years, date_warnings = experience_years(cv, datetime.now(timezone.utc).date())
+        relevant_cv = dimensions.relevant_history(cv, positive_job)
+        years, date_warnings = experience_years(relevant_cv, datetime.now(timezone.utc).date())
         warnings.extend(date_warnings)
-        needed = required_years(request.job_description)
-        experience_score = min(100, 100 * years / needed) if needed else 100.0
+        needed = required_years(positive_job)
+        experience_score = min(100, 100 * years / needed) if needed else 0.0
         candidate_level, candidate_degree = degree_level("\n".join(e.degree or "" for e in cv.education))
-        needed_level, needed_degree = degree_level(request.job_description, requirement=True)
-        education_score = 100.0 if needed_level is None or (candidate_level or 0) >= needed_level else 0.0
+        needed_level, needed_degree = degree_level(positive_job, requirement=True)
+        education_score = (
+            100.0 if needed_level is not None and (candidate_level or 0) >= needed_level else 0.0
+        )
         if not job_skills:
             warnings.append(
                 "No hard skills recognized in the job description; skill coverage is unscored (0)."
             )
         if needed is None:
             warnings.append(
-                "No numeric experience requirement recognized; years-of-experience fit imposes no penalty (100)."
+                "No numeric experience requirement recognized; years-of-experience fit is inactive (weight 0)."
             )
         if needed_level is None:
             warnings.append(
-                "No mandatory education level recognized; degree-level fit imposes no penalty (100)."
+                "No mandatory education level recognized; degree-level fit is inactive (weight 0)."
             )
         duties = dimensions.evidence(
             "\n".join(
                 job.responsibilities
                 if isinstance(job.responsibilities, str)
                 else "\n".join(job.responsibilities)
-                for job in cv.experience
+                for job in relevant_cv.experience
             )
         )
         summary = dimensions.evidence(cv.summary)
@@ -287,9 +290,10 @@ class JobMatcherService:
             skills_detail = dict.fromkeys(skills_detail, 0.0)
 
         def similarity(text: str) -> float:
+            nonlocal method
             if not text.strip():
                 return 0.0
-            value, _, notes = semantic_similarity(text, positive_job)
+            value, method, notes = semantic_similarity(text, dimensions.contextual_requirements(positive_job))
             warnings.extend(notes)
             return round(value, 2)
 
@@ -303,8 +307,8 @@ class JobMatcherService:
         }
         experience_detail = {
             "years_of_experience_fit": round(experience_score, 2),
-            "title_seniority_match": dimensions.title_fit(cv, positive_job),
-            "recency_factor": dimensions.recency(cv, datetime.now(timezone.utc).date()),
+            "title_seniority_match": dimensions.title_fit(relevant_cv, positive_job),
+            "recency_factor": dimensions.recency(relevant_cv, datetime.now(timezone.utc).date()),
         }
         academic_text = dimensions.evidence(
             "\n".join((entry.degree or "") + " " + (entry.field_of_study or "") for entry in cv.education)
@@ -333,18 +337,62 @@ class JobMatcherService:
             "experience": "experience_score",
             "education": "education_score",
         }
-        breakdown = {
-            **groups,
-            **{keys[group]: dimensions.aggregate(group, values) for group, values in groups.items()},
+        title_required = bool(
+            dimensions.recognized(positive_job, dimensions.ROLE_FAMILIES)
+            or re.search(
+                r"\b(developer|engineer|analyst|manager|senior|junior|nurse|chef)\b", positive_job, re.I
+            )
+        )
+        active = {
+            "skills": dict(
+                zip(skills_detail, (bool(required_hard), bool(required_tools), bool(required_soft)))
+            ),
+            "context": dict(
+                zip(
+                    context_detail,
+                    (bool(dimensions.recognized(positive_job, dimensions.DOMAINS)), True, True),
+                )
+            ),
+            "experience": dict(
+                zip(
+                    experience_detail,
+                    (needed is not None, title_required, needed is not None or title_required),
+                )
+            ),
+            "education": dict(
+                zip(
+                    education_detail,
+                    (
+                        needed_level is not None,
+                        bool(dimensions.recognized(positive_job, dimensions.FIELDS)),
+                        bool(dimensions.recognized(positive_job, dimensions.CERTIFICATES)),
+                    ),
+                )
+            ),
         }
-        baseline = sum(weight * breakdown[key] for weight, key in zip((0.4, 0.3, 0.2, 0.1), keys.values()))
+        weights = {
+            group: dimensions.normalized_weights(dimensions.WEIGHTS[group], active[group]) for group in groups
+        }
+        weights["overall"] = dimensions.normalized_weights(
+            dict(zip(groups, (0.4, 0.3, 0.2, 0.1))), {group: any(active[group].values()) for group in groups}
+        )
+        for group, values in groups.items():
+            for field in values:
+                if not active[group][field]:
+                    values[field] = 0.0
+
+        def parent(group):
+            return round(sum(groups[group][key] * weight for key, weight in weights[group].items()), 2)
+
+        breakdown = {**groups, **{keys[group]: parent(group) for group in groups}}
+        baseline = sum(weights["overall"][group] * breakdown[keys[group]] for group in groups)
         domain_conflict = conflicting_domain(cv_text, description)
         complex_input = bool(
             forbidden or domain_conflict or re.search(r"\b[A-Z]{2,4}\b|\bnot\b", description)
         )
         routing = {"stage_1": method, "stage_2": "not_needed"}
         if (40 <= baseline <= 70 or complex_input) and (duties or summary):
-            refined, reason = rerank(duties or summary, positive_job)
+            refined, reason = rerank(duties or summary, dimensions.contextual_requirements(positive_job))
             routing["stage_2"] = reason
             if refined is not None:
                 field = "responsibilities_match" if duties else "summary_alignment"
@@ -355,23 +403,12 @@ class JobMatcherService:
                 warnings.append(
                     "Contextual reranker unavailable within resource policy; deterministic guards and baseline scoring were used."
                 )
-        breakdown["semantic_similarity_score"] = dimensions.aggregate("context", context_detail)
+        breakdown["semantic_similarity_score"] = parent("context")
         semantic_score = breakdown["semantic_similarity_score"]
         warnings.append(
-            "Subcategories without recognized requirements score 100 (no constraint); missing summary, duties or valid work dates score 0. See documented aggregation weights."
+            "Unstated requirements have zero scores and zero weight; active weights are proportionally normalized. Missing required evidence still scores zero."
         )
-        score = round(
-            sum(
-                weight * breakdown[key]
-                for weight, key in [
-                    (0.4, "skill_match_score"),
-                    (0.3, "semantic_similarity_score"),
-                    (0.2, "experience_score"),
-                    (0.1, "education_score"),
-                ]
-            ),
-            2,
-        )
+        score = round(sum(weights["overall"][group] * breakdown[keys[group]] for group in groups), 2)
         raw_score = score
         adjustments = []
         violations = sorted(candidate_skills & forbidden)
@@ -386,6 +423,7 @@ class JobMatcherService:
             adjustments.append(
                 "No documented required hard-skill overlap: unrelated experience and education cannot establish compatibility."
             )
+        score = round(score, 2)
         logger.bind(
             stage_1=routing["stage_1"], stage_2=routing["stage_2"], adjustments=len(adjustments)
         ).info("job_match_routing")
@@ -397,7 +435,7 @@ class JobMatcherService:
             )
         if needed is not None:
             recommendations.append(
-                f"Documented experience: {years:.2f} years; required: {needed:g} years. "
+                f"Documented relevant experience: {years:.2f} years; required: {needed:g} years. "
                 + (
                     "Requirement met."
                     if experience_score >= 100
@@ -432,4 +470,5 @@ class JobMatcherService:
             raw_match_percentage=raw_score,
             scoring_adjustments=adjustments,
             model_routing=routing,
+            effective_weights=weights,
         ).model_dump()

@@ -14,7 +14,7 @@ python -m pytest tests/test_benchmark_matcher.py -q
 
 Output: `reports/benchmark_match_results.pdf` and `reports/benchmark_match_results.json`.
 
-The default run uses real TF-IDF with reranking disabled for reproducibility. To test installed, locally cached embedding/reranking models:
+The archived reference run used real TF-IDF with reranking disabled. The CLI now defaults to automatic cached semantic embeddings; use `--backend tfidf` to explicitly select the lexical fallback. To test installed, locally cached embedding/reranking models:
 
 ```bash
 python -m pip install '.[benchmark,matching]'

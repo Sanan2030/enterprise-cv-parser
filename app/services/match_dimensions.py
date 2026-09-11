@@ -57,7 +57,7 @@ def recognized(text: str, vocabulary: dict[str, str]) -> set[str]:
 
 
 def coverage(candidate: set[str], required: set[str]) -> float:
-    return round(100 * len(candidate & required) / len(required), 2) if required else 100.0
+    return round(100 * len(candidate & required) / len(required), 2) if required else 0.0
 
 
 def aggregate(group: str, scores: dict[str, float]) -> float:
@@ -115,7 +115,69 @@ def title_fit(cv: CVEvidence, jd: str) -> float:
     scores = []
     for job in cv.experience:
         title = evidence(job.position or "")
-        relevance = coverage(recognized(title, roles), target)
+        relevance = coverage(recognized(title, roles), target) if target else 100.0
         seniority = min(100, 100 * level(title) / required) if required else 100
         scores.append(relevance * seniority / 100)
     return round(max(scores, default=0), 2)
+
+
+ROLE_FAMILIES = {
+    "backend": r"backend|back.end|api developer",
+    "frontend": r"frontend|front.end|react developer",
+    "devops": r"devops|site reliability|platform engineer|cloud engineer",
+    "ml": r"machine learning|ml engineer|data scientist",
+    "data": r"data engineer|data analyst",
+    "business": r"business analyst",
+    "finance": r"financial analyst|accountant|accounting",
+    "hospitality": r"chef|cook|kitchen",
+    "software": r"software developer|software engineer|programmer",
+    "healthcare": r"nurse|physician|doctor",
+}
+
+
+def relevant_history(cv: CVEvidence, jd: str) -> CVEvidence:
+    """Filter positions, never candidate-wide skills, before merging dated intervals."""
+    target = recognized(jd, ROLE_FAMILIES)
+    if not target and re.search(r"\b(python|fastapi|docker|kubernetes|software|developer)\b", jd, re.I):
+        target = {"software"}
+    target_domains = recognized(jd, DOMAINS)
+    selected = []
+    for job in cv.experience:
+        title = evidence(job.position or "")
+        duties = evidence(
+            job.responsibilities if isinstance(job.responsibilities, str) else " ".join(job.responsibilities)
+        )
+        family = recognized(title, ROLE_FAMILIES)
+        domains = recognized(title + " " + duties, DOMAINS)
+        if target:
+            related = bool(family & target) or (
+                target == {"software"} and bool(family & {"backend", "frontend", "devops"})
+            )
+            # Generic software roles require role-specific evidence in their duties.
+            if family == {"software"}:
+                related = related or bool(recognized(duties, ROLE_FAMILIES) & target)
+        else:
+            related = bool(domains & target_domains) if target_domains else bool(title or duties)
+        if related:
+            selected.append(job)
+    return cv.model_copy(update={"experience": selected})
+
+
+def normalized_weights(weights: dict[str, float], active: dict[str, bool]) -> dict[str, float]:
+    total = sum(value for key, value in weights.items() if active[key])
+    return {key: value / total if active[key] and total else 0.0 for key, value in weights.items()}
+
+
+def contextual_requirements(jd: str) -> str:
+    """Exclude administrative requirements from duties/summary semantic comparisons."""
+    clauses = re.split(r"[;\n]|(?<=[.!?])\s+", jd)
+    selected = [
+        clause
+        for clause in clauses
+        if not re.search(
+            r"required skills\s*:|\b(?:bachelor|master|phd|degree|certification|minimum|years? of experience)\b",
+            clause,
+            re.I,
+        )
+    ]
+    return "\n".join(selected).strip() or jd

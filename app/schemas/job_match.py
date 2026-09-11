@@ -196,3 +196,4 @@ class JobMatchResponse(BaseModel):
     raw_match_percentage: Score = 0
     scoring_adjustments: list[str] = Field(default_factory=list)
     model_routing: dict[str, str] = Field(default_factory=dict)
+    effective_weights: dict[str, dict[str, float]] = Field(default_factory=dict)

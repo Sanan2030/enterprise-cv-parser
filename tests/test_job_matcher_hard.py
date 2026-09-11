@@ -140,7 +140,8 @@ def test_cpr_domain_isolation(evaluate):
 def test_mixed_language_skills(evaluate, summary):
     def verify(r):
         assert r[0]["breakdown"]["skill_match_score"] == 100
-        assert r[0]["match_percentage"] >= 60
+        assert r[0]["breakdown"]["experience"]["years_of_experience_fit"] == 0
+        assert r[0]["effective_weights"]["education"]["certifications_match"] == 0
 
     evaluate([({"summary": summary}, "Python FastAPI Docker Kubernetes engineer")], verify)
 
@@ -203,7 +204,7 @@ def test_borderline_routes_to_reranker(evaluate, monkeypatch):
     def verify(r):
         assert r[0]["semantic_method"] == "cross-encoder"
         assert r[0]["breakdown"]["context"]["summary_alignment"] == 80
-        assert r[0]["breakdown"]["semantic_similarity_score"] == 46
+        assert r[0]["breakdown"]["semantic_similarity_score"] == 22.86
 
     evaluate([(DEV, JD)], verify)
 

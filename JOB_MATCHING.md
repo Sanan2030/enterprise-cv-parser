@@ -29,33 +29,35 @@ Frontend regression checks: `node --test tests/frontend.test.cjs tests/job_match
 
 ## Scores
 
-All component scores are 0–100. The `raw_match_percentage` is the following fixed weighted sum, rounded to two decimals:
+All component scores are 0–100. The `raw_match_percentage` uses the following base weights, normalized over active categories and rounded to two decimals:
 
 `0.40 × skill_match_score + 0.30 × semantic_similarity_score + 0.20 × experience_score + 0.10 × education_score`
 
 The existing four numeric fields remain under `breakdown`. Four nested objects now provide their inputs:
 
-| Parent field | Nested object and sub-scores | Fixed weights |
+| Parent field | Nested object and sub-scores | Base weights |
 |---|---|---|
 | `skill_match_score` | `skills`: `hard_skills_match`, `tools_and_frameworks_match`, `soft_skills_match` | 50%, 30%, 20% |
 | `semantic_similarity_score` | `context`: `domain_relevance`, `responsibilities_match`, `summary_alignment` | 30%, 50%, 20% |
 | `experience_score` | `experience`: `years_of_experience_fit`, `title_seniority_match`, `recency_factor` | 60%, 25%, 15% |
 | `education_score` | `education`: `degree_level_fit`, `field_of_study_relevance`, `certifications_match` | 60%, 25%, 15% |
 
-Each leaf is rounded to two decimals, then the parent is the rounded weighted sum of the returned leaves. The raw overall score aggregates the four returned parent scores using 40/30/20/10. Parent scores therefore intentionally differ from older releases. Existing scalar keys remain API-compatible; clients can additionally render the nested objects. The dashboard displays all 12 sub-scores.
+Each leaf is rounded to two decimals. Unstated requirements have score zero and weight zero. Remaining base weights are proportionally normalized within each parent and across active parents. `effective_weights` exposes the exact weights used; parents aggregate returned leaves and `raw_match_percentage` aggregates returned parents. Context remains active; education is inactive when no degree, subject or certification requirement is recognized. Required but missing evidence retains its weight and scores zero. Parent scores therefore intentionally differ from older releases. Existing scalar keys remain API-compatible; clients can additionally render the nested objects. The dashboard displays all 12 sub-scores.
 
 - **Hard skills and tools:** mandatory recognized skill coverage, with tools/frameworks partitioned from other technical skills. Docker, Git, databases, and known frameworks enter the tools category. Aliases and explicit custom skill lists remain supported. Unknown explicit skills default to the hard category.
 - **Soft skills:** recognized communication, leadership, teamwork, problem solving, critical thinking, Agile, Scrum, and Kanban coverage. Both native `soft_skills` and dashboard `skills.soft` are accepted. These do not inflate technical coverage.
 - **Domain:** coverage of recognized software, finance, healthcare, creative, hospitality, and engineering contexts. This is a curated contextual rule, not unrestricted industry understanding.
 - **Responsibilities and summary:** separately sanitized professional duties and summary are compared with positive job requirements using the configured semantic backend. Missing evidence scores zero. Optional cross-encoder refinement updates duties when present, otherwise summary; `model_routing.reranked_field` identifies the affected leaf. The context parent is always recomputed afterward.
-- **Years:** elapsed, merged work intervals divided by required years, capped at 100. Overlapping roles are not double counted; ongoing roles end at today's UTC date. Partial dates assume the first day. Missing, ambiguous, or reversed intervals contribute no years.
-- **Title/seniority:** recognized role overlap multiplied by documented seniority fit, taking the strongest past title. Levels are intern=1, junior=2, mid=3, senior=4, lead/principal/staff/director=5. Missing seniority scores zero when the JD explicitly requires it; no recognized role/seniority constraint scores 100. This coarse vocabulary does not establish equivalence between all engineering specialties.
-- **Recency:** the latest valid employment end date scores 100 for the first year, then decays with a five-year half-life: `100 * 2 ** (-max(0, years_since_end - 1) / 5)`. No valid work interval scores zero. This uses work dates, never candidate age.
+- **Years:** elapsed, merged role-relevant work intervals divided by required years, capped at 100. Overlapping roles are not double counted; ongoing roles end at today's UTC date. Partial dates assume the first day. Missing, ambiguous, or reversed intervals contribute no years.
+- **Title/seniority:** recognized role overlap multiplied by documented seniority fit, taking the strongest past title. Levels are intern=1, junior=2, mid=3, senior=4, lead/principal/staff/director=5. Missing seniority scores zero when the JD explicitly requires it; no recognized role/seniority constraint is inactive (score and weight zero). This coarse vocabulary does not establish equivalence between all engineering specialties.
+- **Recency:** the latest valid role-relevant employment end date scores 100 for the first year, then decays with a five-year half-life: `100 * 2 ** (-max(0, years_since_end - 1) / 5)`. No valid work interval scores zero. This uses work dates, never candidate age.
 - **Degree:** documented level meeting the recognized minimum scores 100, otherwise zero. Hierarchy: high school, associate, bachelor, master, doctorate.
 - **Field:** coverage of recognized academic subjects found in degree/major fields against the JD. The initial vocabulary includes computing, software engineering, business, finance, medicine and engineering; grouped subjects are approximate.
 - **Certifications:** recognized required names matched only against the certification section, including aliases for PMP, CKA, AWS Solutions Architect, CISSP, CPA, Scrum Master, and CPR. Dashboard `certificateName`, native `certification_name`, `name`, and string entries are supported. This checks documented presence, not validity, expiry or verification of licenses. Unknown credentials are not automatically interpreted.
 
-No recognized requirement in a category means 100 (no constraint), not verified qualification. If no technical or soft requirements are recognized at all, all three skill leaves are zero. Missing summary, duties, or valid employment dates score zero. Optional requirements are excluded where recognized; requirement and negation detection remain rule-based. Weights are fixed and never redistributed. Scores are compatibility indicators, not calibrated probabilities of job performance.
+No recognized requirement means score zero and weight zero. All active weights sum to one; an entirely inactive parent has zero weight. No automatic qualification credit is awarded. Context comparison retains missing duties/summary as zero evidence, not as inactive requirements. Dates and titles are scored only from relevant past positions. Matching uses explicit role families (backend, frontend, DevOps, ML, data, business, finance, hospitality, generic software, healthcare) and professional duties for generic software roles. Candidate-wide keywords never qualify an unrelated job. These rules remain conservative and do not cover every role synonym.
+
+Context scorers compare duties and summary against role-focused JD clauses, excluding administrative degree/years and explicit skill-list clauses. Cached `all-MiniLM-L6-v2` embeddings are the default semantic path; cosine similarity is not artificially rescaled or given a minimum. TF-IDF is an explicit or resource fallback and is disclosed in the response. Vercel still skips heavy models; install the matching extra and pre-cache the model on a suitable host to use semantic scoring. Scores are compatibility indicators, not calibrated probabilities.
 
 Final `match_percentage` applies explicit evidence guards after the weighted sum: documented hard exclusions yield 0; contradictory supported acronym domains cap the score at 9; zero recognized required-skill overlap caps it at the lower of 9 and 9% of the semantic component. `scoring_adjustments` explains every applied guard. These conservative caps can underestimate candidates whose skills fall outside the vocabulary.
 
@@ -120,6 +122,8 @@ Implementation references: [Sentence Transformers](https://sbert.net/docs/packag
 
 ## Granular scoring validation
 
-`tests/test_job_matcher.py` verifies every nested leaf, exact fixed-weight aggregation, API serialization, category separation, missing evidence, certification aliases, degree/major mismatch, seniority, recency, and bounded inputs. `tests/job_matching_frontend.test.cjs` verifies nested score rendering. The prior hard-mode report describes the earlier release; numeric parent scores have intentionally changed in this release.
+`tests/test_job_matcher.py` verifies every nested leaf, exact active-weight aggregation, API serialization, category separation, missing evidence, certification aliases, degree/major mismatch, seniority, recency, and bounded inputs. `tests/job_matching_frontend.test.cjs` verifies nested score rendering. The prior hard-mode report describes the earlier release; numeric parent scores have intentionally changed in this release.
 
 Validation result for this release: **214 Python tests passed; 12 frontend tests passed**, including all 22 hard-mode adversarial/routing cases.
+
+See [reports/SCORING_REFACTOR.md](reports/SCORING_REFACTOR.md) for the frozen-label before/after results and compatibility notes.

@@ -46,9 +46,9 @@ def test_weighted_formula_and_missing_skills(cv):
     assert b["skills"] == {
         "hard_skills_match": 100,
         "tools_and_frameworks_match": 50,
-        "soft_skills_match": 100,
+        "soft_skills_match": 0,
     }
-    assert b["skill_match_score"] == 85
+    assert b["skill_match_score"] == 81.25
     assert b["experience"]["years_of_experience_fit"] == b["education_score"] == 100
     assert result["match_percentage"] == round(
         0.4 * b["skill_match_score"]
@@ -128,7 +128,7 @@ def test_education_and_unknown_requirements(cv):
         cv, "Python; Master degree required; 10 years of experience"
     )
     assert result["breakdown"]["education"]["degree_level_fit"] == 0
-    assert result["breakdown"]["education_score"] == 40
+    assert result["breakdown"]["education_score"] == 0
     assert result["breakdown"]["experience"]["years_of_experience_fit"] == pytest.approx(50, abs=0.1)
     assert matcher.degree_level("Bachelor or Master degree", requirement=True) == (3, "Bachelor")
     assert matcher.degree_level("Master preferred", requirement=True) == (None, None)
@@ -260,12 +260,13 @@ def test_all_nested_scores_and_exact_aggregation(cv):
         "experience": "experience_score",
         "education": "education_score",
     }
-    for group, weights in WEIGHTS.items():
-        assert set(b[group]) == set(weights)
+    for group, expected in WEIGHTS.items():
+        weights = result["effective_weights"][group]
+        assert set(b[group]) == set(expected)
         assert all(0 <= value <= 100 for value in b[group].values())
         assert b[mapping[group]] == round(sum(b[group][key] * weight for key, weight in weights.items()), 2)
     assert result["raw_match_percentage"] == round(
-        sum(b[key] * weight for key, weight in zip(mapping.values(), (0.4, 0.3, 0.2, 0.1))), 2
+        sum(b[key] * result["effective_weights"]["overall"][group] for group, key in mapping.items()), 2
     )
     b["skills"]["hard_skills_match"] = 101
     with pytest.raises(ValidationError):
@@ -308,7 +309,7 @@ def test_missing_major_and_optional_credential(cv):
         cv, "Python; Bachelor in Computer Science; PMP optional"
     )
     assert result["breakdown"]["education"]["field_of_study_relevance"] == 0
-    assert result["breakdown"]["education"]["certifications_match"] == 100
+    assert result["breakdown"]["education"]["certifications_match"] == 0
 
 
 def test_title_and_recency_use_work_evidence():
@@ -365,3 +366,71 @@ def test_nested_api_response(client, cv):
 def test_new_evidence_validation(bad):
     with pytest.raises(ValidationError):
         JobMatchRequest(cv_data={"summary": "Python developer", **bad}, job_description="Python")
+
+
+def test_unrelated_tenure_is_excluded():
+    cv = {
+        "skills": ["Python", "Docker"],
+        "experience": [
+            {"position": "Chef", "startDate": "2000-01-01", "endDate": "2020-01-01"},
+            {"position": "Financial Analyst", "startDate": "2020-01-01", "endDate": "2024-01-01"},
+            {"position": "DevOps Engineer", "startDate": "2024-01-01", "endDate": "2025-01-01"},
+        ],
+    }
+    result = matcher.JobMatcherService().analyze_compatibility(
+        cv, "DevOps Engineer. Python Docker. 5 years of experience"
+    )
+    assert result["experience_analysis"]["candidate_years"] == pytest.approx(1, abs=0.01)
+    assert result["breakdown"]["experience"]["years_of_experience_fit"] == pytest.approx(20, abs=0.1)
+
+
+def test_weights_remove_unstated_education_and_tools():
+    result = matcher.JobMatcherService().analyze_compatibility({"skills": ["Python"]}, "Python developer")
+    weights = result["effective_weights"]
+    assert weights["overall"]["education"] == 0
+    assert sum(weights["overall"].values()) == pytest.approx(1)
+    assert weights["skills"]["hard_skills_match"] == 1
+    assert weights["skills"]["tools_and_frameworks_match"] == 0
+    assert all(value == 0 for value in result["breakdown"]["education"].values())
+
+
+def test_missing_required_certification_stays_active(cv):
+    result = matcher.JobMatcherService().analyze_compatibility(cv, "Python. PMP required")
+    assert result["effective_weights"]["education"]["certifications_match"] == 1
+    assert result["breakdown"]["education"]["certifications_match"] == 0
+
+
+def test_old_benchmark_responses_still_deserialize():
+    import json
+    from pathlib import Path
+
+    report = json.loads(Path("reports/benchmark_match_results.json").read_text())
+    for row in report["results"]:
+        JobMatchResponse.model_validate(row["response"])
+
+
+def test_semantic_context_uses_scoped_requirements(cv, monkeypatch):
+    seen = []
+
+    def semantic(text, jd):
+        seen.append(jd)
+        return 88, "sentence-transformers", []
+
+    monkeypatch.setattr(matcher, "semantic_similarity", semantic)
+    result = matcher.JobMatcherService().analyze_compatibility(
+        cv, "Backend Developer. Build REST services. Bachelor required. Minimum 5 years of experience."
+    )
+    assert result["breakdown"]["context"]["responsibilities_match"] == 88
+    assert result["breakdown"]["context"]["summary_alignment"] == 88
+    assert "Bachelor" not in seen[-1]
+
+
+def test_technical_requirement_without_explicit_title_rejects_chef_years():
+    result = matcher.JobMatcherService().analyze_compatibility(
+        {
+            "skills": ["Python"],
+            "experience": [{"position": "Chef", "startDate": "2000-01-01", "endDate": "2025-01-01"}],
+        },
+        "Python FastAPI; 5 years of experience",
+    )
+    assert result["experience_analysis"]["candidate_years"] == 0

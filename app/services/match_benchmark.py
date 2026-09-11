@@ -78,7 +78,7 @@ def insights(row: dict) -> list[str]:
     ]
 
 
-def run_benchmark(dataset_path: Path, *, backend: str = "tfidf", rerank: bool = False) -> dict:
+def run_benchmark(dataset_path: Path, *, backend: str = "auto", rerank: bool = False) -> dict:
     if backend not in {"tfidf", "auto"}:
         raise ValueError("backend must be tfidf or auto")
     dataset, digest = load_dataset(dataset_path)
@@ -148,7 +148,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=Path, default=Path("tests/fixtures/job_match_benchmark.json"))
     parser.add_argument("--output-dir", type=Path, default=Path("reports"))
-    parser.add_argument("--backend", choices=("tfidf", "auto"), default="tfidf")
+    parser.add_argument("--backend", choices=("tfidf", "auto"), default="auto")
     parser.add_argument("--rerank", action="store_true")
     parser.add_argument(
         "--require-alignment", action="store_true", help="Exit nonzero for any delta above 10 points"

@@ -20,3 +20,6 @@ build/
 # Preserve requested adversarial failure evidence.
 !failed_match_tests/**/*.log
 !failed_match_tests/*.log
+
+# Version the synthetic benchmark deliverable.
+!reports/benchmark_match_results.pdf

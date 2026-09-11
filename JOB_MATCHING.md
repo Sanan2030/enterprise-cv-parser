@@ -15,7 +15,17 @@ curl -X POST http://localhost:8000/api/v1/match-job \
   }'
 ```
 
-If `API_KEY` is configured, include `X-API-Key`. The endpoint is also available through FastAPI `/docs`. This feature adds an API service; the extraction dashboard's existing fields and layout are unchanged.
+If `API_KEY` is configured, include `X-API-Key`. The endpoint is also available through FastAPI `/docs`.
+
+## Dashboard workflow
+
+1. Upload a PDF and wait for extraction to finish. The **Job Requirements** panel appears in the sidebar.
+2. Paste the vacancy requirements and select **Analyze compatibility**.
+3. Review the overall percentage, four component scores, matched/missing skills, and recommendations.
+
+The panel uses the parser URL and API key from Connection settings and submits the current edited CV. Changing the CV, requirements, or connection clears the previous score and cancels pending display updates. Uploading a new document or resetting clears the panel. Timeout and server errors appear inline with a retry button.
+
+Frontend regression checks: `node --test tests/frontend.test.cjs tests/job_matching_frontend.test.cjs`.
 
 ## Scores
 

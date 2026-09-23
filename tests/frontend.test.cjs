@@ -53,3 +53,25 @@ test('TXT exports all nested categories rather than just summary',()=>{
     assert.ok(result.includes('education.0.university: Example'));
     assert.ok(result.includes('tables.0.rows.0.0: Cell'));
 });
+
+test('quick CV view exposes an eye toggle and compact panel',()=>{
+    assert.ok(html.includes('id="quickPreviewBtn"'));
+    assert.ok(html.includes('fa-regular fa-eye'));
+    assert.ok(html.includes('id="quickPreviewPanel"'));
+    assert.ok(html.includes('Quick CV view'));
+});
+const quickContext=vm.createContext({});
+const quickStart=script.indexOf('function monthIndex(');
+const quickEnd=script.indexOf('function quickField(');
+vm.runInContext(script.slice(quickStart,quickEnd),quickContext);
+test('total experience merges overlapping work periods instead of double counting',()=>{
+    const result=vm.runInContext(`formatExperienceMonths(totalExperienceMonths([{startDate:'2020-01',endDate:'2022-01'},{startDate:'2021-06',endDate:'2023-01'}],new Date('2026-09-23T00:00:00Z')))`,quickContext);
+    assert.equal(result,'3 yrs');
+});
+test('current job is selected only from an explicitly ongoing experience entry',()=>{
+    const current=vm.runInContext(`getCurrentExperience([{company:'Old',position:'Developer',endDate:'2024-12'},{company:'Active',position:'Lead',endDate:'Present'}])`,quickContext);
+    assert.equal(current.company,'Active');
+    assert.equal(current.position,'Lead');
+    const none=vm.runInContext(`getCurrentExperience([{company:'Old',endDate:'2024-12'}])`,quickContext);
+    assert.equal(none,null);
+});

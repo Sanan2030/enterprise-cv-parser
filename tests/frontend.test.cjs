@@ -100,7 +100,7 @@ test('quick view exposes a full editable candidate form ordered by CV importance
     const required=['Personal information','Contact & links','Professional overview','Work history','Education','Skills','Languages','Certifications','Projects'];
     for(const heading of required) assert.ok(html.includes(heading),heading);
     assert.ok(script.includes("quickEditField('Professional summary',['summary']"));
-    assert.ok(script.includes("quickEditField('Current employer'"));
+    assert.ok(script.includes("['Current employer',['experience',currentIndex,'company']]"));
     assert.ok(script.includes("quickListField('Technical skills'"));
 });
 test('quick view edits mutate extracted data and sync the main editable dashboard',()=>{

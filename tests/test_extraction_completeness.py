@@ -144,7 +144,10 @@ def test_azerbaijani_sections_and_wrapped_education(block):
             block("C2", 70, x=160, width=15),
         ]
     )
-    assert [(entry.language, entry.cefr_level) for entry in languages] == [\n        ("İngiliscə", "B2"),\n        ("Türkcə", "C2"),\n    ]
+    assert [(entry.language, entry.cefr_level) for entry in languages] == [
+        ("İngiliscə", "B2"),
+        ("Türkcə", "C2"),
+    ]
 
 
 def test_sidebar_sections_do_not_interrupt_main_column(block):

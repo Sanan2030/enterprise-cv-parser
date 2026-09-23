@@ -738,4 +738,6 @@ def normalize_explicit_gender(value: str | None) -> GenderPrediction:
         return _prediction("male", 0.99, "Gender was explicitly stated in the CV.")
     if normalized in female_values:
         return _prediction("female", 0.99, "Gender was explicitly stated in the CV.")
-    return _prediction("unknown", 0.25, "Explicit gender text was present but could not be normalized safely.")
+    return _prediction(
+        "unknown", 0.25, "Explicit gender text was present but could not be normalized safely."
+    )

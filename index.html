@@ -24,6 +24,11 @@ body{background:var(--bg);font-size:15px;line-height:1.55}.shell{max-width:1120p
 .quick-info-pane{padding:0;overflow:auto}.quick-editor{padding:18px 20px 28px;display:grid;gap:14px}.quick-editor-intro{padding:2px 2px 4px}.quick-editor-intro h3{margin:0;font-size:20px;letter-spacing:-.4px}.quick-editor-intro p{margin:3px 0 0;color:var(--muted);font-size:12px}.quick-section{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}.quick-section-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}.quick-section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px}.quick-section-sub{font-size:10px;color:var(--muted)}.quick-section-body{padding:13px 14px;display:grid;gap:10px}.quick-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.quick-edit-field{display:grid;gap:5px;min-width:0}.quick-edit-field.wide{grid-column:1/-1}.quick-edit-label{font-size:10px;color:var(--muted);font-weight:600}.quick-edit-input{width:100%;border:1px solid var(--line);border-radius:8px;background:var(--input);color:var(--ink);padding:9px 10px;font-size:12px;line-height:1.4}.quick-edit-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 14%,transparent);outline:0}.quick-edit-input[readonly]{color:var(--muted);background:var(--raised)}textarea.quick-edit-input{min-height:78px;resize:vertical}.quick-list-input{min-height:84px}.quick-entry{border:1px solid var(--line);border-radius:10px;background:var(--raised);overflow:hidden}.quick-entry-head{padding:9px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line)}.quick-entry-head strong{font-size:12px}.quick-entry-body{padding:10px}.quick-entry-actions{display:flex;gap:6px}.quick-add-row{display:flex;justify-content:flex-start}.quick-current-badge{font-size:9px;font-weight:700;color:var(--good);text-transform:uppercase;letter-spacing:.6px}.quick-empty{font-size:11px;color:var(--muted);padding:2px 0}.experience-select{border:1px solid var(--line);border-radius:8px;background:var(--input);padding:9px 10px;font-size:12px}.quick-link-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:560px){.quick-edit-grid,.quick-link-row{grid-template-columns:1fr}.quick-editor{padding:14px}.quick-section-body{padding:11px}.quick-entry-body{padding:9px}}
 
+
+.quick-modal{height:min(760px,calc(100vh - 56px));min-height:0}.quick-modal-body{min-height:0;overflow:hidden}.quick-info-pane{overflow:hidden}.quick-editor{height:100%;padding:14px 16px;gap:9px;align-content:start}.quick-editor-intro{padding:0 1px 2px}.quick-editor-intro h3{font-size:17px}.quick-editor-intro p{font-size:10px;margin-top:2px}.quick-section{border-radius:10px}.quick-section-head{padding:8px 10px}.quick-section-title{font-size:10px}.quick-section-sub{font-size:9px}.quick-section-body{padding:9px 10px;gap:7px}.quick-edit-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px 8px}.quick-edit-field{gap:3px}.quick-edit-label{font-size:9px}.quick-edit-input,.experience-select,.gender-select{padding:7px 8px;font-size:11px;border-radius:7px}.quick-edit-field.wide{grid-column:span 2}.quick-pdf-pane{min-height:0}.quick-pdf-pane .preview-area{overflow:hidden;padding:12px}.quick-pdf-head{padding:9px 12px}.quick-pdf-pane .preview-controls{padding:7px 10px}
+@media(max-width:860px){.quick-modal{height:calc(100vh - 20px)}.quick-modal-body{grid-template-columns:1fr 1fr}.quick-pdf-pane{min-height:0;border-top:0;border-left:1px solid var(--line)}.quick-edit-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.quick-modal-body{grid-template-columns:1fr}.quick-pdf-pane{display:none}.quick-edit-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.modal-backdrop{padding:10px}.quick-modal{min-height:0;height:calc(100vh - 20px);border-radius:14px}.quick-editor{padding:12px}.quick-info-pane{overflow:hidden}}
+
 </style>
 </head>
 <body>
@@ -194,6 +199,16 @@ const wrap=node('label','quick-edit-field'+(wide?' wide':''));const captionEl=no
 if(!readonly){input.addEventListener('input',()=>quickSetPath(path,input.value));input.addEventListener('blur',()=>{renderStructuredDashboard();});}
 wrap.append(captionEl,input);return wrap;
 }
+function quickGenderField(){
+const wrap=node('label','quick-edit-field');wrap.append(node('span','quick-edit-label','Gender'));
+const select=node('select','quick-edit-input gender-select');select.id='quick-field-personalInformation-gender';select.setAttribute('aria-label','Gender');
+const current=String(quickPathValue(['personalInformation','gender'])||'').trim();const options=[['','Not specified'],['Male','Male'],['Female','Female'],['Other','Other']];
+if(current&&!options.some(([value])=>value.toLowerCase()===current.toLowerCase()))options.push([current,current]);
+for(const [value,text] of options){const option=node('option','',text);option.value=value;select.append(option);}
+const matched=options.find(([value])=>value.toLowerCase()===current.toLowerCase());select.value=matched?matched[0]:'';
+select.addEventListener('change',()=>{quickSetPath(['personalInformation','gender'],select.value);renderStructuredDashboard();});
+wrap.append(select);return wrap;
+}
 function quickListField(caption,path){
 const wrap=node('label','quick-edit-field wide');wrap.append(node('span','quick-edit-label',caption));const input=node('textarea','quick-edit-input quick-list-input');input.value=(quickPathValue(path)||[]).join(', ');input.placeholder='Separate items with commas or new lines';
 input.addEventListener('input',()=>{const values=input.value.split(/[\n,]+/).map(v=>v.trim()).filter(Boolean);const parent=path.slice(0,-1).reduce((obj,key)=>obj[key],appState.extractedData);parent[path.at(-1)]=values;markDirty(false);});
@@ -228,48 +243,34 @@ else{const wasOpen=!panel.hidden;panel.hidden=true;document.body.classList.remov
 }
 function toggleQuickPreview(){setQuickPreview($('quickPreviewPanel').hidden);}
 function renderQuickPreview(){
-const holder=$('quickPreviewContent');const data=appState.extractedData;if(!holder||!data)return;const experience=Array.isArray(data.experience)?data.experience:[];const months=totalExperienceMonths(experience);const currentIndex=experience.findIndex(entry=>/^(present|current|now|ongoing|hazırda)$/i.test(String(entry.endDate||'').trim()));
-const editor=node('div','quick-editor');const intro=node('div','quick-editor-intro');intro.append(node('h3','',data.personalInformation?.fullName||'Candidate profile'),node('p','','Edit the parsed fields here while comparing them with the original CV. Changes are included in exports.'));editor.append(intro);
+const holder=$('quickPreviewContent');const data=appState.extractedData;if(!holder||!data)return;
+const experience=Array.isArray(data.experience)?data.experience:[];const months=totalExperienceMonths(experience);
+const editor=node('div','quick-editor');const intro=node('div','quick-editor-intro');intro.append(node('h3','',data.personalInformation?.fullName||'Candidate profile'),node('p','','Edit the essential parsed fields while comparing them with the original CV.'));editor.append(intro);
 
-const identity=quickSection('Personal information','Highest priority');const identityGrid=node('div','quick-edit-grid');
-[
- ['Full name',['personalInformation','fullName']],['First name',['personalInformation','firstName']],['Last name',['personalInformation','lastName']],['Middle name',['personalInformation','middleName']],
- ['Date of birth',['personalInformation','dateOfBirth']],['Gender',['personalInformation','gender']],['Nationality',['personalInformation','nationality']],['Marital status',['personalInformation','maritalStatus']],['Address',['personalInformation','address'],{wide:true}]
-].forEach(([caption,path,options])=>identityGrid.append(quickEditField(caption,path,options||{})));identity.body.append(identityGrid);editor.append(identity.section);
+const identity=quickSection('Personal information','Essential identity');const identityGrid=node('div','quick-edit-grid');
+identityGrid.append(
+ quickEditField('Full name',['personalInformation','fullName']),
+ quickEditField('First name',['personalInformation','firstName']),
+ quickEditField('Last name',['personalInformation','lastName']),
+ quickEditField('Date of birth',['personalInformation','dateOfBirth']),
+ quickGenderField(),
+ quickEditField('Nationality',['personalInformation','nationality']),
+ quickEditField('Address',['personalInformation','address'],{wide:true})
+);
+identity.body.append(identityGrid);editor.append(identity.section);
 
-const contact=quickSection('Contact & links','Contact details');const contactGrid=node('div','quick-edit-grid');
-[
- ['Email',['contactInformation','email']],['Mobile phone',['contactInformation','mobilePhone']],['Alternative phone',['contactInformation','alternativePhone']],['LinkedIn',['contactInformation','linkedIn']],
- ['GitHub',['contactInformation','gitHub']],['Portfolio',['contactInformation','portfolio']]
-].forEach(([caption,path])=>contactGrid.append(quickEditField(caption,path)));contact.body.append(contactGrid);editor.append(contact.section);
+const contact=quickSection('Contact & links','How to reach the candidate');const contactGrid=node('div','quick-edit-grid');
+contactGrid.append(
+ quickEditField('Email',['contactInformation','email']),
+ quickEditField('Mobile phone',['contactInformation','mobilePhone']),
+ quickEditField('Alternative phone',['contactInformation','alternativePhone']),
+ quickEditField('LinkedIn',['contactInformation','linkedIn']),
+ quickEditField('GitHub',['contactInformation','gitHub']),
+ quickEditField('Portfolio',['contactInformation','portfolio'])
+);
+contact.body.append(contactGrid);editor.append(contact.section);
 
-const profile=quickSection('Professional overview','Core profile');const profileGrid=node('div','quick-edit-grid');profileGrid.append(experienceRangeField(months));profileGrid.append(quickEditField('Professional summary',['summary'],{wide:true,multiline:true}));profile.body.append(profileGrid);editor.append(profile.section);
-
-if(currentIndex>=0){const current=quickSection('Current position','Active role');const currentGrid=node('div','quick-edit-grid');[
- ['Current employer',['experience',currentIndex,'company']],['Current role title',['experience',currentIndex,'position']],['Department',['experience',currentIndex,'department']],['Employment type',['experience',currentIndex,'employmentType']],['Location',['experience',currentIndex,'location']],['Start date',['experience',currentIndex,'startDate']]
-].forEach(([caption,path])=>currentGrid.append(quickEditField(caption,path)));current.body.append(currentGrid);editor.append(current.section);}
-
-editor.append(quickArraySection('Work history','experience',[
- ['Company','company'],['Position','position'],['Start date','startDate'],['End date','endDate'],['Duration','duration',{readonly:true}],['Department','department'],['Location','location'],['Employment type','employmentType'],['Responsibilities','responsibilities',{wide:true,multiline:true}]
-],'Experience'));
-
-editor.append(quickArraySection('Education','education',[
- ['University','university'],['Degree','degree'],['Field of study','fieldOfStudy'],['Start date','startDate'],['End date','endDate'],['Duration','duration',{readonly:true}],['GPA','gpa'],['Academic achievements','academicAchievements',{wide:true,multiline:true}]
-],'Education'));
-
-const skills=quickSection('Skills','Technical and soft skills');skills.body.append(quickListField('Technical skills',['skills','technical']),quickListField('Soft skills',['skills','soft']));editor.append(skills.section);
-
-editor.append(quickArraySection('Languages','languages',[
- ['Language','language'],['Level','level']
-],'Language'));
-
-editor.append(quickArraySection('Certifications','certifications',[
- ['Certificate','certificateName'],['Issuing organization','issuingOrganization'],['Issue date','issueDate'],['Credential ID','credentialID']
-],'Certification'));
-
-editor.append(quickArraySection('Projects','projects',[
- ['Project name','projectName'],['Role','role'],['Technologies','technologies'],['Description','description',{wide:true,multiline:true}]
-],'Project'));
+const profile=quickSection('Professional overview','Experience level');const profileGrid=node('div','quick-edit-grid');profileGrid.append(experienceRangeField(months));profile.body.append(profileGrid);editor.append(profile.section);
 
 holder.replaceChildren(editor);
 }

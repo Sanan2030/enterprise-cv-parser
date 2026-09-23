@@ -95,3 +95,26 @@ test('experience is grouped into editable review ranges',()=>{
     assert.equal(vm.runInContext('experienceRangeFromMonths(47)',rangeContext),'3–5 years');
     assert.equal(vm.runInContext('experienceRangeFromMonths(130)',rangeContext),'10+ years');
 });
+
+test('quick view exposes a full editable candidate form ordered by CV importance',()=>{
+    const required=['Personal information','Contact & links','Professional overview','Work history','Education','Skills','Languages','Certifications','Projects'];
+    for(const heading of required) assert.ok(html.includes(heading),heading);
+    assert.ok(script.includes("quickEditField('Professional summary',['summary']"));
+    assert.ok(script.includes("quickEditField('Current employer'"));
+    assert.ok(script.includes("quickListField('Technical skills'"));
+});
+test('quick view edits mutate extracted data and sync the main editable dashboard',()=>{
+    assert.ok(script.includes('function quickSetPath(path,value)'));
+    assert.ok(script.includes('parent[path.at(-1)]=value'));
+    assert.ok(script.includes('syncMainField(path,value)'));
+    assert.ok(script.includes('markDirty(false)'));
+});
+test('quick work, education, language, certification and project entries support add and remove',()=>{
+    assert.ok(script.includes("quickArraySection('Work history','experience'"));
+    assert.ok(script.includes("quickArraySection('Education','education'"));
+    assert.ok(script.includes("quickArraySection('Languages','languages'"));
+    assert.ok(script.includes("quickArraySection('Certifications','certifications'"));
+    assert.ok(script.includes("quickArraySection('Projects','projects'"));
+    assert.ok(script.includes("list.splice(index,1)"));
+    assert.ok(script.includes("list.push(structuredClone(TEMPLATES[key]))"));
+});

@@ -20,6 +20,10 @@ body{background:var(--bg);font-size:15px;line-height:1.55}.shell{max-width:1120p
 @media(max-width:860px){.quick-modal-body{grid-template-columns:1fr}.quick-pdf-pane{border-left:0;border-top:1px solid var(--line);min-height:520px}.stats{grid-template-columns:repeat(2,1fr)}.workspace-title{margin-top:34px}.workspace-title h2{font-size:30px}.upload{align-items:flex-start}.upload .upload-action{width:auto}.pipeline{grid-template-columns:1fr}}
 @media(max-width:560px){.shell{padding:0 16px}.topbar-inner{min-height:62px}.brand .eyebrow,#privacyBadge{display:none}.workspace-title h2{font-size:27px}.upload{padding:20px;flex-wrap:wrap}.upload .upload-action{width:100%;margin:0}.document-strip{align-items:flex-start;flex-direction:column}.document-strip-meta{justify-content:flex-start}.stats{grid-template-columns:repeat(2,1fr)}.toolbar .row{flex-wrap:wrap}.result-header{align-items:flex-start;flex-direction:column}.modal-backdrop{padding:0}.quick-modal{min-height:100vh;border:0;border-radius:0}.quick-modal-body{display:block}.quick-info-pane{padding:16px}.quick-preview-grid{grid-template-columns:1fr}.quick-pdf-pane{height:70vh}.quick-modal-top{position:sticky;top:0;z-index:2}}
 
+
+.quick-info-pane{padding:0;overflow:auto}.quick-editor{padding:18px 20px 28px;display:grid;gap:14px}.quick-editor-intro{padding:2px 2px 4px}.quick-editor-intro h3{margin:0;font-size:20px;letter-spacing:-.4px}.quick-editor-intro p{margin:3px 0 0;color:var(--muted);font-size:12px}.quick-section{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}.quick-section-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}.quick-section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px}.quick-section-sub{font-size:10px;color:var(--muted)}.quick-section-body{padding:13px 14px;display:grid;gap:10px}.quick-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.quick-edit-field{display:grid;gap:5px;min-width:0}.quick-edit-field.wide{grid-column:1/-1}.quick-edit-label{font-size:10px;color:var(--muted);font-weight:600}.quick-edit-input{width:100%;border:1px solid var(--line);border-radius:8px;background:var(--input);color:var(--ink);padding:9px 10px;font-size:12px;line-height:1.4}.quick-edit-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 14%,transparent);outline:0}.quick-edit-input[readonly]{color:var(--muted);background:var(--raised)}textarea.quick-edit-input{min-height:78px;resize:vertical}.quick-list-input{min-height:84px}.quick-entry{border:1px solid var(--line);border-radius:10px;background:var(--raised);overflow:hidden}.quick-entry-head{padding:9px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line)}.quick-entry-head strong{font-size:12px}.quick-entry-body{padding:10px}.quick-entry-actions{display:flex;gap:6px}.quick-add-row{display:flex;justify-content:flex-start}.quick-current-badge{font-size:9px;font-weight:700;color:var(--good);text-transform:uppercase;letter-spacing:.6px}.quick-empty{font-size:11px;color:var(--muted);padding:2px 0}.experience-select{border:1px solid var(--line);border-radius:8px;background:var(--input);padding:9px 10px;font-size:12px}.quick-link-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:560px){.quick-edit-grid,.quick-link-row{grid-template-columns:1fr}.quick-editor{padding:14px}.quick-section-body{padding:11px}.quick-entry-body{padding:9px}}
+
 </style>
 </head>
 <body>
@@ -176,42 +180,103 @@ if(!intervals.length)return 0;let total=0;let [start,end]=intervals[0];for(const
 }
 function formatExperienceMonths(months){if(!months)return '';const years=Math.floor(months/12);const rest=months%12;const parts=[];if(years)parts.push(years+' yr'+(years===1?'':'s'));if(rest)parts.push(rest+' mo'+(rest===1?'':'s'));return parts.join(' ');}
 function getCurrentExperience(experience){return (experience||[]).find(entry=>/^(present|current|now|ongoing|hazırda)$/i.test(String(entry.endDate||'').trim()))||null;}
-function quickField(caption,value){const wrap=node('div','quick-field');wrap.append(node('span','quick-label',caption),node('strong','quick-value',value||'—'));return wrap;}
 const EXPERIENCE_RANGES=['Less than 1 year','1–2 years','2–3 years','3–5 years','5–7 years','7–10 years','10+ years'];
 function experienceRangeFromMonths(months){if(months<12)return 'Less than 1 year';if(months<24)return '1–2 years';if(months<36)return '2–3 years';if(months<60)return '3–5 years';if(months<84)return '5–7 years';if(months<120)return '7–10 years';return '10+ years';}
+function quickPathValue(path){try{return path.reduce((obj,key)=>obj?.[key],appState.extractedData)??'';}catch{return '';}}
+function syncMainField(path,value){const mirror=$('field-'+path.join('-'));if(!mirror)return;mirror.value=value??'';if(mirror.parentElement)mirror.parentElement.dataset.value=mirror.value;}
+function quickSetPath(path,value){
+const parent=path.slice(0,-1).reduce((obj,key)=>obj[key],appState.extractedData);parent[path.at(-1)]=value;
+if(['startDate','endDate'].includes(path.at(-1)))recalculateDurations();
+syncMainField(path,value);markDirty(false);
+}
+function quickEditField(caption,path,{wide=false,multiline=false,readonly=false,placeholder='Not extracted'}={}){
+const wrap=node('label','quick-edit-field'+(wide?' wide':''));const captionEl=node('span','quick-edit-label',caption);const input=node(multiline?'textarea':'input','quick-edit-input');input.id='quick-field-'+path.join('-');input.value=quickPathValue(path);input.placeholder=placeholder;input.readOnly=readonly;input.setAttribute('autocomplete','off');
+if(!readonly){input.addEventListener('input',()=>quickSetPath(path,input.value));input.addEventListener('blur',()=>{renderStructuredDashboard();});}
+wrap.append(captionEl,input);return wrap;
+}
+function quickListField(caption,path){
+const wrap=node('label','quick-edit-field wide');wrap.append(node('span','quick-edit-label',caption));const input=node('textarea','quick-edit-input quick-list-input');input.value=(quickPathValue(path)||[]).join(', ');input.placeholder='Separate items with commas or new lines';
+input.addEventListener('input',()=>{const values=input.value.split(/[\n,]+/).map(v=>v.trim()).filter(Boolean);const parent=path.slice(0,-1).reduce((obj,key)=>obj[key],appState.extractedData);parent[path.at(-1)]=values;markDirty(false);});
+input.addEventListener('blur',()=>renderStructuredDashboard());wrap.append(input);return wrap;
+}
+function quickSection(title,subtitle=''){const section=node('section','quick-section');const head=node('div','quick-section-head');head.append(node('div','quick-section-title',title));if(subtitle)head.append(node('div','quick-section-sub',subtitle));const body=node('div','quick-section-body');section.append(head,body);return {section,body,head};}
 function experienceRangeField(months){
-const wrap=node('div','quick-field');wrap.append(node('span','quick-label','Experience'));
+const wrap=node('label','quick-edit-field');wrap.append(node('span','quick-edit-label','Total experience'));
 const select=node('select','experience-select');select.setAttribute('aria-label','Experience range');
 for(const optionText of EXPERIENCE_RANGES){const option=node('option','',optionText);option.value=optionText;select.append(option);}
 select.value=appState.experienceRangeOverride||experienceRangeFromMonths(months);
-select.addEventListener('change',()=>{appState.experienceRangeOverride=select.value;showToast('Experience range updated for this review.');});
+select.addEventListener('change',()=>{appState.experienceRangeOverride=select.value;appState.dirty=true;appState.revision++;$('unsavedBanner').hidden=false;$('resultStatus').textContent='Manually edited';showToast('Experience range updated for this review.');});
 wrap.append(select);return wrap;
+}
+function quickArraySection(title,key,fieldSpec,templateLabel){
+const list=appState.extractedData[key]||[];const {section,body,head}=quickSection(title,list.length+' entr'+(list.length===1?'y':'ies'));
+if(!list.length)body.append(node('div','quick-empty','Nothing was extracted. You can add an entry.'));
+list.forEach((entry,index)=>{
+ const card=node('div','quick-entry');const cardHead=node('div','quick-entry-head');const heading=node('strong','',templateLabel+' '+(index+1));
+ if(key==='experience'&&/^(present|current|now|ongoing|hazırda)$/i.test(String(entry.endDate||'').trim())){const titleWrap=node('div');titleWrap.append(heading,node('div','quick-current-badge','Current'));cardHead.append(titleWrap);}else cardHead.append(heading);
+ const remove=button('Remove',()=>{list.splice(index,1);markDirty(false);renderStructuredDashboard();renderQuickPreview();},'btn small');cardHead.append(remove);
+ const cardBody=node('div','quick-entry-body');const grid=node('div','quick-edit-grid');
+ for(const spec of fieldSpec){const [caption,fieldName,options={}] = spec;grid.append(quickEditField(caption,[key,index,fieldName],options));}
+ cardBody.append(grid);card.append(cardHead,cardBody);body.append(card);
+});
+const addRow=node('div','quick-add-row');addRow.append(button('+ Add '+templateLabel.toLowerCase(),()=>{list.push(structuredClone(TEMPLATES[key]));markDirty(false);renderStructuredDashboard();renderQuickPreview();},'btn small'));body.append(addRow);return section;
 }
 function setQuickPreview(open){
 const panel=$('quickPreviewPanel');const button=$('quickPreviewBtn');const canOpen=Boolean(open&&appState.extractedData);
 if(canOpen){renderQuickPreview();panel.hidden=false;document.body.classList.add('modal-open');button.setAttribute('aria-expanded','true');requestAnimationFrame(()=>{void renderPreview();$('quickPreviewClose').focus();});}
-else{panel.hidden=true;document.body.classList.remove('modal-open');button.setAttribute('aria-expanded','false');}
+else{const wasOpen=!panel.hidden;panel.hidden=true;document.body.classList.remove('modal-open');button.setAttribute('aria-expanded','false');if(wasOpen&&appState.extractedData)renderStructuredDashboard();}
 }
 function toggleQuickPreview(){setQuickPreview($('quickPreviewPanel').hidden);}
 function renderQuickPreview(){
-const holder=$('quickPreviewContent');const data=appState.extractedData;if(!holder||!data)return;
-const person=data.personalInformation||{};const contact=data.contactInformation||{};const experience=Array.isArray(data.experience)?data.experience:[];const current=getCurrentExperience(experience);const months=totalExperienceMonths(experience);
-const intro=node('div');intro.append(node('div','quick-preview-title',person.fullName||'Candidate'),node('div','quick-preview-subtitle',[current?.position,current?.company].filter(Boolean).join(' · ')||'Parsed CV summary'));
-const grid=node('div','quick-preview-grid');[
-['Email',contact.email],['Phone',contact.mobilePhone],['Location',person.address],['Birthday',person.dateOfBirth],
-['Gender',person.gender],['Current employer',current?.company||''],['Current role',current?.position||''],['LinkedIn',contact.linkedIn]
-].forEach(([caption,value])=>grid.append(quickField(caption,value)));
-grid.prepend(experienceRangeField(months));
-const history=node('details','quick-history');const summary=node('summary');summary.append(node('span','','Work history'),node('span','badge',String(experience.length)));history.append(summary);const list=node('div','quick-history-list');
-if(!experience.length)list.append(node('div','subtle','No work experience was extracted.'));
-for(const entry of experience){const item=node('div','quick-history-item');const title=[entry.position,entry.company].filter(Boolean).join(' · ')||'Experience';const dates=[entry.startDate,entry.endDate].filter(Boolean).join(' — ');item.append(node('strong','',title),node('div','quick-history-meta',[dates,entry.duration].filter(Boolean).join(' · ')));list.append(item);}history.append(list);
-const note=node('p','quick-note','Experience range is calculated from the extracted work dates. You can override the range above for review.');
-holder.replaceChildren(intro,grid,history,note);
+const holder=$('quickPreviewContent');const data=appState.extractedData;if(!holder||!data)return;const experience=Array.isArray(data.experience)?data.experience:[];const months=totalExperienceMonths(experience);const currentIndex=experience.findIndex(entry=>/^(present|current|now|ongoing|hazırda)$/i.test(String(entry.endDate||'').trim()));
+const editor=node('div','quick-editor');const intro=node('div','quick-editor-intro');intro.append(node('h3','',data.personalInformation?.fullName||'Candidate profile'),node('p','','Edit the parsed fields here while comparing them with the original CV. Changes are included in exports.'));editor.append(intro);
+
+const identity=quickSection('Personal information','Highest priority');const identityGrid=node('div','quick-edit-grid');
+[
+ ['Full name',['personalInformation','fullName']],['First name',['personalInformation','firstName']],['Last name',['personalInformation','lastName']],['Middle name',['personalInformation','middleName']],
+ ['Date of birth',['personalInformation','dateOfBirth']],['Gender',['personalInformation','gender']],['Nationality',['personalInformation','nationality']],['Marital status',['personalInformation','maritalStatus']],['Address',['personalInformation','address'],{wide:true}]
+].forEach(([caption,path,options])=>identityGrid.append(quickEditField(caption,path,options||{})));identity.body.append(identityGrid);editor.append(identity.section);
+
+const contact=quickSection('Contact & links','Contact details');const contactGrid=node('div','quick-edit-grid');
+[
+ ['Email',['contactInformation','email']],['Mobile phone',['contactInformation','mobilePhone']],['Alternative phone',['contactInformation','alternativePhone']],['LinkedIn',['contactInformation','linkedIn']],
+ ['GitHub',['contactInformation','gitHub']],['Portfolio',['contactInformation','portfolio']]
+].forEach(([caption,path])=>contactGrid.append(quickEditField(caption,path)));contact.body.append(contactGrid);editor.append(contact.section);
+
+const profile=quickSection('Professional overview','Core profile');const profileGrid=node('div','quick-edit-grid');profileGrid.append(experienceRangeField(months));profileGrid.append(quickEditField('Professional summary',['summary'],{wide:true,multiline:true}));profile.body.append(profileGrid);editor.append(profile.section);
+
+if(currentIndex>=0){const current=quickSection('Current position','Active role');const currentGrid=node('div','quick-edit-grid');[
+ ['Current employer',['experience',currentIndex,'company']],['Current role title',['experience',currentIndex,'position']],['Department',['experience',currentIndex,'department']],['Employment type',['experience',currentIndex,'employmentType']],['Location',['experience',currentIndex,'location']],['Start date',['experience',currentIndex,'startDate']]
+].forEach(([caption,path])=>currentGrid.append(quickEditField(caption,path)));current.body.append(currentGrid);editor.append(current.section);}
+
+editor.append(quickArraySection('Work history','experience',[
+ ['Company','company'],['Position','position'],['Start date','startDate'],['End date','endDate'],['Duration','duration',{readonly:true}],['Department','department'],['Location','location'],['Employment type','employmentType'],['Responsibilities','responsibilities',{wide:true,multiline:true}]
+],'Experience'));
+
+editor.append(quickArraySection('Education','education',[
+ ['University','university'],['Degree','degree'],['Field of study','fieldOfStudy'],['Start date','startDate'],['End date','endDate'],['Duration','duration',{readonly:true}],['GPA','gpa'],['Academic achievements','academicAchievements',{wide:true,multiline:true}]
+],'Education'));
+
+const skills=quickSection('Skills','Technical and soft skills');skills.body.append(quickListField('Technical skills',['skills','technical']),quickListField('Soft skills',['skills','soft']));editor.append(skills.section);
+
+editor.append(quickArraySection('Languages','languages',[
+ ['Language','language'],['Level','level']
+],'Language'));
+
+editor.append(quickArraySection('Certifications','certifications',[
+ ['Certificate','certificateName'],['Issuing organization','issuingOrganization'],['Issue date','issueDate'],['Credential ID','credentialID']
+],'Certification'));
+
+editor.append(quickArraySection('Projects','projects',[
+ ['Project name','projectName'],['Role','role'],['Technologies','technologies'],['Description','description',{wide:true,multiline:true}]
+],'Project'));
+
+holder.replaceChildren(editor);
 }
-function recalculateDurations(){for(const key of ['experience','education']){(appState.extractedData?.[key]||[]).forEach((entry,index)=>{entry.duration=calculateDuration(entry.startDate,entry.endDate);const input=$('field-'+key+'-'+index+'-duration');if(input){input.value=entry.duration;input.parentElement.dataset.value=entry.duration;}});}}
+function recalculateDurations(){for(const key of ['experience','education']){(appState.extractedData?.[key]||[]).forEach((entry,index)=>{entry.duration=calculateDuration(entry.startDate,entry.endDate);const input=$('field-'+key+'-'+index+'-duration');if(input){input.value=entry.duration;input.parentElement.dataset.value=entry.duration;}const quick=$('quick-field-'+key+'-'+index+'-duration');if(quick)quick.value=entry.duration;});}}
 function getPath(path){return path.reduce((obj,key)=>obj[key],appState.extractedData);}
 function setPath(path,value){const parent=getPath(path.slice(0,-1));parent[path.at(-1)]=value;if(['startDate','endDate'].includes(path.at(-1)))recalculateDurations();markDirty();}
-function markDirty(){appState.revision++;appState.dirty=true;$('unsavedBanner').hidden=false;$('resultStatus').textContent='Manually edited';updateStatsCounters();if(!$('quickPreviewPanel').hidden)renderQuickPreview();invalidateJobMatch('CV edited. Analyze again to update the match.');}
+function markDirty(refreshQuick=true){appState.revision++;appState.dirty=true;$('unsavedBanner').hidden=false;$('resultStatus').textContent='Manually edited';updateStatsCounters();if(refreshQuick&&!$('quickPreviewPanel').hidden)renderQuickPreview();invalidateJobMatch('CV edited. Analyze again to update the match.');}
 function field(path,value){const wrap=node('div','field searchable'+(['summary','responsibilities','description','academicAchievements'].includes(path.at(-1))?' wide':''));const caption=path[0]==='skills'?label(path[1])+' skill':label(String(path.at(-1)));const id='field-'+path.join('-');const line=node('div','field-label');const captionEl=node('label','',caption);captionEl.htmlFor=id;wrap.dataset.label=caption;line.append(captionEl);const input=node(wrap.classList.contains('wide')?'textarea':'input');input.id=id;input.value=value??'';input.placeholder=path.at(-1)==='duration'?'Enter valid start and end dates':'Not extracted';if(path.at(-1)==='duration'){input.readOnly=true;input.title='Calculated from dates; month-only dates use elapsed calendar months.';}input.setAttribute('autocomplete','off');input.addEventListener('input',()=>{setPath(path,input.value);wrap.dataset.value=input.value;applyFilters();});wrap.dataset.value=input.value;wrap.append(line,input,node('div','match-preview'));return wrap;}
 function addItem(key){const list=getPath(key);list.push(key[0]==='skills'?'':structuredClone(TEMPLATES[key[0]]));markDirty();renderStructuredDashboard();}
 function objectFields(obj,path){const grid=node('div','field-grid');Object.entries(obj).forEach(([key,value])=>grid.append(field([...path,key],value)));return grid;}

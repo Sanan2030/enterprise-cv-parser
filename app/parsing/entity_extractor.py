@@ -238,11 +238,10 @@ class EntityExtractor:
             prediction = detect_gender(personal.full_name.value, cv_text)
             if prediction["gender"] in {"male", "female"}:
                 source = personal.full_name.provenance
+                confidence = min(prediction["confidence"], personal.full_name.confidence)
                 personal.gender = FieldWithMetadata(
                     value=prediction["gender"],
-                    confidence=prediction["confidence"],
-                    provenance=source.model_copy(update={"confidence": prediction["confidence"]})
-                    if source
-                    else None,
+                    confidence=confidence,
+                    provenance=source.model_copy(update={"confidence": confidence}) if source else None,
                 )
         return personal

@@ -268,15 +268,8 @@ def detect_gender(full_name: str | None, cv_text: str = "") -> GenderPrediction:
     if "oğlu" in tokens or "oglu" in tokens:
         return _prediction("male", 0.99, "Patronymic indicator oğlu/oglu matched.")
 
-    if last_name.endswith(FEMALE_SUFFIXES):
-        return _prediction("female", 0.95, "Surname matched a female-coded suffix.")
-    if last_name.endswith(MALE_SUFFIXES):
-        return _prediction("male", 0.95, "Surname matched a male-coded suffix.")
-    if first_name.endswith("gül"):
-        return _prediction("female", 0.90, "First name matched the -gül female indicator.")
-
-    # Neutral surnames such as -zadə/-li/-lu/-lü/-soy do not decide gender.
-    # Ambiguous/unisex first names require contextual evidence.
+    # Ambiguous/unisex first names must not be resolved from a gender-coded
+    # surname alone. Require contextual evidence unless qızı/oğlu already matched.
     if first_name in UNISEX_NAMES:
         context = _context_prediction(cv_text)
         return context or _prediction(
@@ -284,6 +277,13 @@ def detect_gender(full_name: str | None, cv_text: str = "") -> GenderPrediction:
             0.20,
             "First name is ambiguous/unisex and no reliable CV context indicator was found.",
         )
+
+    if last_name.endswith(FEMALE_SUFFIXES):
+        return _prediction("female", 0.95, "Surname matched a female-coded suffix.")
+    if last_name.endswith(MALE_SUFFIXES):
+        return _prediction("male", 0.95, "Surname matched a male-coded suffix.")
+    if first_name.endswith("gül"):
+        return _prediction("female", 0.90, "First name matched the -gül female indicator.")
 
     if first_name in FEMALE_NAMES:
         return _prediction("female", 0.92, "First name matched the Azerbaijani/Turkish female-name registry.")

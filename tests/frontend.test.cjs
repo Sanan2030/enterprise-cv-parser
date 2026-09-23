@@ -102,6 +102,7 @@ test('quick view contains only personal, contact and professional overview secti
     const render=script.slice(start,end);
     for(const heading of ['Personal information','Contact & links','Professional overview']) assert.ok(render.includes(heading),heading);
     for(const removed of ['Middle name','Marital status','Professional summary','Current position','Work history','Education','Skills','Languages','Certifications','Projects']) assert.equal(render.includes(removed),false,removed);
+    for(const kept of ['Current employer','Current role title','Department','Employment type','Work location','Start date']) assert.ok(render.includes(kept),kept);
 });
 test('quick view keeps essential fields editable and gender uses a dropdown',()=>{
     assert.ok(script.includes('function quickSetPath(path,value)'));
@@ -114,8 +115,10 @@ test('quick view keeps essential fields editable and gender uses a dropdown',()=
     assert.ok(script.includes("quickEditField('Email'"));
     assert.ok(script.includes('experienceRangeField(months)'));
 });
-test('quick modal is constrained to one viewport without an internal info scroll',()=>{
+test('quick modal is constrained to one viewport and PDF fits both width and height',()=>{
     assert.ok(html.includes('.quick-modal{height:min(760px,calc(100vh - 56px));min-height:0}'));
     assert.ok(html.includes('.quick-info-pane{overflow:hidden}'));
     assert.ok(html.includes('.quick-modal-body{min-height:0;overflow:hidden}'));
+    assert.ok(script.includes('availableWidth/base.width,availableHeight/base.height'));
+    assert.ok(html.includes('.quick-pdf-pane #pdfCanvas{max-width:100%;max-height:100%;object-fit:contain'));
 });

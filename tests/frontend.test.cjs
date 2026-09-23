@@ -75,3 +75,23 @@ test('current job is selected only from an explicitly ongoing experience entry',
     const none=vm.runInContext(`getCurrentExperience([{company:'Old',endDate:'2024-12'}])`,quickContext);
     assert.equal(none,null);
 });
+
+test('minimal redesign keeps results hidden until a CV is parsed',()=>{
+    assert.ok(html.includes('id="resultsWorkspace" class="workspace-results" hidden'));
+    assert.ok(html.includes('Upload a CV. Get the useful parts.'));
+});
+test('quick view is a modal containing the original PDF preview',()=>{
+    assert.ok(html.includes('id="quickPreviewPanel" class="modal-backdrop"'));
+    assert.ok(html.includes('id="quickPreviewContent"'));
+    assert.ok(html.includes('Original CV'));
+    assert.ok(html.includes('id="previewArea"'));
+});
+const rangeContext=vm.createContext({});
+const rangeStart=script.indexOf("const EXPERIENCE_RANGES=");
+const rangeEnd=script.indexOf("function experienceRangeField(",rangeStart);
+vm.runInContext(script.slice(rangeStart,rangeEnd),rangeContext);
+test('experience is grouped into editable review ranges',()=>{
+    assert.equal(vm.runInContext('experienceRangeFromMonths(30)',rangeContext),'2–3 years');
+    assert.equal(vm.runInContext('experienceRangeFromMonths(47)',rangeContext),'3–5 years');
+    assert.equal(vm.runInContext('experienceRangeFromMonths(130)',rangeContext),'10+ years');
+});

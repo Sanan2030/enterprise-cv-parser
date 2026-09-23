@@ -593,8 +593,6 @@ ADDITIONAL_FEMALE_NAMES = {
 
 MALE_NAMES.update(ADDITIONAL_MALE_NAMES)
 FEMALE_NAMES.update(ADDITIONAL_FEMALE_NAMES)
-MALE_NAMES.difference_update(UNISEX_NAMES)
-FEMALE_NAMES.difference_update(UNISEX_NAMES)
 
 UNISEX_NAMES = {
     "nihal",
@@ -629,6 +627,9 @@ UNISEX_NAMES = {
     "sultan",
     "bəxti",
 }
+
+MALE_NAMES.difference_update(UNISEX_NAMES)
+FEMALE_NAMES.difference_update(UNISEX_NAMES)
 
 AZ_FEMALE_SURNAME_SUFFIXES = ("ova", "yeva", "eva")
 AZ_MALE_SURNAME_SUFFIXES = ("ov", "yev", "ev")

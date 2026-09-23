@@ -62,7 +62,7 @@ test('quick CV view exposes an eye toggle and compact panel',()=>{
 });
 const quickContext=vm.createContext({});
 const quickStart=script.indexOf('function monthIndex(');
-const quickEnd=script.indexOf('function quickField(');
+const quickEnd=script.indexOf('const EXPERIENCE_RANGES=',quickStart);
 vm.runInContext(script.slice(quickStart,quickEnd),quickContext);
 test('total experience merges overlapping work periods instead of double counting',()=>{
     const result=vm.runInContext(`formatExperienceMonths(totalExperienceMonths([{startDate:'2020-01',endDate:'2022-01'},{startDate:'2021-06',endDate:'2023-01'}],new Date('2026-09-23T00:00:00Z')))`,quickContext);

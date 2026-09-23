@@ -229,7 +229,6 @@ class EntityExtractor:
         if personal.gender:
             explicit = normalize_explicit_gender(personal.gender.value)
             if explicit["gender"] in {"male", "female"}:
-                personal.gender.value = explicit["gender"]
                 personal.gender.confidence = explicit["confidence"]
                 if personal.gender.provenance:
                     personal.gender.provenance.confidence = explicit["confidence"]

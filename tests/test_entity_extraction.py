@@ -79,3 +79,61 @@ def test_end_to_end_nested_schema(pdf_bytes):
 def test_no_fake_name(block):
     blocks = [block("Summary"), block("Python Developer")]
     assert EntityExtractor().extract(blocks, blocks, []).full_name is None
+
+
+from app.parsing.gender_detector import detect_gender, normalize_explicit_gender
+
+
+@pytest.mark.parametrize(
+    ("full_name", "expected"),
+    [
+        ("Leyla Məmmədova", "female"),
+        ("Sənan Nəbiyev", "male"),
+        ("Aygül Hüseynli", "female"),
+        ("Murad Əliyev", "male"),
+        ("Aysel Məmməd qızı", "female"),
+        ("Tural Məmməd oğlu", "male"),
+    ],
+)
+def test_gender_detector_name_rules(full_name, expected):
+    prediction = detect_gender(full_name)
+    assert prediction["gender"] == expected
+    assert 0.8 <= prediction["confidence"] <= 1.0
+    assert prediction["reason"]
+
+
+@pytest.mark.parametrize("full_name", ["Arzu Məmmədzadə", "Xəyal Əliyev", "Dəniz Hüseynli", "Tərlan Quliyev"])
+def test_gender_detector_ambiguous_first_names_do_not_guess_without_context(full_name):
+    prediction = detect_gender(full_name)
+    assert prediction["gender"] == "unknown"
+    assert prediction["confidence"] <= 0.25
+
+
+def test_gender_detector_ambiguous_name_uses_military_context():
+    prediction = detect_gender("Arzu Məmmədzadə", "2019-2020 Hərbi xidmət")
+    assert prediction["gender"] == "male"
+    assert prediction["confidence"] >= 0.7
+
+
+def test_gender_detector_ambiguous_name_uses_female_context():
+    prediction = detect_gender("Arzu Məmmədzadə", "Arzu xanım layihənin rəhbəri olmuşdur.")
+    assert prediction["gender"] == "female"
+    assert prediction["confidence"] >= 0.7
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("Kişi", "male"), ("Male", "male"), ("Qadın", "female"), ("Женский", "female")],
+)
+def test_explicit_gender_normalization(raw, expected):
+    prediction = normalize_explicit_gender(raw)
+    assert prediction["gender"] == expected
+    assert prediction["confidence"] == 0.99
+
+
+def test_gender_detector_unknown_for_missing_name():
+    assert detect_gender(None) == {
+        "gender": "unknown",
+        "confidence": 0.0,
+        "reason": "Full name is missing.",
+    }

@@ -11,6 +11,7 @@ from app.extraction.hyperlink_extractor import Hyperlink
 from app.extraction.layout_engine import LayoutBlock
 from app.intelligence.provenance import provenance, sourced
 from app.normalization.url_normalizer import URLNormalizer
+from app.parsing.gender_detector import detect_gender, normalize_explicit_gender
 from app.parsing.section_classifier import SectionClassifier
 from app.schemas.resume import FieldWithMetadata, PersonalInformation
 
@@ -222,4 +223,26 @@ class EntityExtractor:
                 ):
                     personal.location = sourced(block.text, header, 0.65)
                     break
+
+        # Preserve explicitly stated gender as the strongest evidence. If gender is
+        # absent, infer only when deterministic name/context evidence is strong.
+        if personal.gender:
+            explicit = normalize_explicit_gender(personal.gender.value)
+            if explicit["gender"] in {"male", "female"}:
+                personal.gender.value = explicit["gender"]
+                personal.gender.confidence = explicit["confidence"]
+                if personal.gender.provenance:
+                    personal.gender.provenance.confidence = explicit["confidence"]
+        elif personal.full_name:
+            cv_text = "\n".join(block.text for block in blocks)
+            prediction = detect_gender(personal.full_name.value, cv_text)
+            if prediction["gender"] in {"male", "female"}:
+                source = personal.full_name.provenance
+                personal.gender = FieldWithMetadata(
+                    value=prediction["gender"],
+                    confidence=prediction["confidence"],
+                    provenance=source.model_copy(update={"confidence": prediction["confidence"]})
+                    if source
+                    else None,
+                )
         return personal

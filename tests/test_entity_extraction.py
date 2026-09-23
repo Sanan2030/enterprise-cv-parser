@@ -4,6 +4,7 @@ from app.extraction.hyperlink_extractor import Hyperlink
 from app.normalization.phone_normalizer import PhoneNormalizer
 from app.normalization.url_normalizer import URLNormalizer
 from app.parsing.entity_extractor import EntityExtractor
+from app.parsing.gender_detector import UNISEX_NAMES, detect_gender, normalize_explicit_gender
 from app.parsing.skill_extractor import SkillExtractor
 from app.schemas.resume import ResumeParsedSchema
 from app.services.resume_parser import ResumeParserService
@@ -79,9 +80,6 @@ def test_end_to_end_nested_schema(pdf_bytes):
 def test_no_fake_name(block):
     blocks = [block("Summary"), block("Python Developer")]
     assert EntityExtractor().extract(blocks, blocks, []).full_name is None
-
-
-from app.parsing.gender_detector import UNISEX_NAMES, detect_gender, normalize_explicit_gender
 
 
 @pytest.mark.parametrize(

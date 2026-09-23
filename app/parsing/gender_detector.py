@@ -1,7 +1,6 @@
 import re
 from typing import Literal, TypedDict
 
-
 Gender = Literal["male", "female", "unknown"]
 
 

@@ -291,7 +291,6 @@ ADDITIONAL_MALE_NAMES = {
     "fəyyaz",
     "fərrux",
     "fərahim",
-    "fimar",
     "fikrət",
     "firudin",
     "firdovsi",
@@ -341,7 +340,6 @@ ADDITIONAL_MALE_NAMES = {
     "kənan",
     "kərim",
     "kəramət",
-    "laçın",
     "lazım",
     "lətif",
     "mahir",
@@ -363,7 +361,6 @@ ADDITIONAL_MALE_NAMES = {
     "muxtar",
     "mübariz",
     "mümtaz",
-    "münəvvər",
     "müntəzir",
     "mürsəl",
     "müslüm",
@@ -380,12 +377,15 @@ ADDITIONAL_MALE_NAMES = {
     "nəsib",
     "nəsimi",
     "nicat",
-    "nihal",
     "nihad",
     "niyaz",
     "niyazi",
     "novruz",
     "nurşən",
+    "nurlan",
+    "nuru",
+    "nurulla",
+    "nurşərəf",
 }
 
 ADDITIONAL_FEMALE_NAMES = {
@@ -436,7 +436,6 @@ ADDITIONAL_FEMALE_NAMES = {
     "fatma",
     "fəridə",
     "fəxriyyə",
-    "fimar",
     "firəngiz",
     "fizzə",
     "flora",
@@ -472,7 +471,6 @@ ADDITIONAL_FEMALE_NAMES = {
     "kəmalə",
     "kifayət",
     "kövsər",
-    "laçın",
     "laləzar",
     "leyli",
     "lətifə",
@@ -492,7 +490,6 @@ ADDITIONAL_FEMALE_NAMES = {
     "məsmə",
     "mətanət",
     "minurə",
-    "münəvvər",
     "müşkünaz",
     "mülayim",
     "nahidə",
@@ -506,7 +503,6 @@ ADDITIONAL_FEMALE_NAMES = {
     "nazimə",
     "nazlı",
     "nəfisə",
-    "nihal",
     "nisə",
     "növrəstə",
     "nurlana",
@@ -589,12 +585,22 @@ ADDITIONAL_FEMALE_NAMES = {
     "tünzalə",
     "türkan",
     "türkanə",
+    "aydan",
+    "aygün",
+    "aynur",
+    "aysel",
 }
 
 MALE_NAMES.update(ADDITIONAL_MALE_NAMES)
 FEMALE_NAMES.update(ADDITIONAL_FEMALE_NAMES)
+MALE_NAMES.difference_update(UNISEX_NAMES)
+FEMALE_NAMES.difference_update(UNISEX_NAMES)
 
 UNISEX_NAMES = {
+    "nihal",
+    "münəvvər",
+    "laçın",
+    "fimar",
     "arzu",
     "ədalət",
     "edalet",

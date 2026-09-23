@@ -158,6 +158,7 @@ def test_expanded_name_pools_add_200_names_per_gender():
     assert len(ADDITIONAL_FEMALE_NAMES) == 200
     assert ADDITIONAL_MALE_NAMES.isdisjoint(UNISEX_NAMES)
     assert ADDITIONAL_FEMALE_NAMES.isdisjoint(UNISEX_NAMES)
+    assert ADDITIONAL_MALE_NAMES.isdisjoint(ADDITIONAL_FEMALE_NAMES)
 
 
 @pytest.mark.parametrize(

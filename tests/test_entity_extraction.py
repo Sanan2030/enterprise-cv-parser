@@ -81,7 +81,7 @@ def test_no_fake_name(block):
     assert EntityExtractor().extract(blocks, blocks, []).full_name is None
 
 
-from app.parsing.gender_detector import detect_gender, normalize_explicit_gender
+from app.parsing.gender_detector import UNISEX_NAMES, detect_gender, normalize_explicit_gender
 
 
 @pytest.mark.parametrize(
@@ -102,8 +102,8 @@ def test_gender_detector_name_rules(full_name, expected):
     assert prediction["reason"]
 
 
-@pytest.mark.parametrize("full_name", ["Arzu Məmmədzadə", "Xəyal Əliyev", "Dəniz Hüseynli", "Tərlan Quliyev"])
-def test_gender_detector_ambiguous_first_names_do_not_guess_without_context(full_name):
+@pytest.mark.parametrize("full_name", ["Arzu Məmmədzadə", "Dəniz Hüseynli", "Tərlan Quluzadə"])
+def test_gender_detector_ambiguous_first_names_with_neutral_surnames_do_not_guess(full_name):
     prediction = detect_gender(full_name)
     assert prediction["gender"] == "unknown"
     assert prediction["confidence"] <= 0.25
@@ -137,3 +137,37 @@ def test_gender_detector_unknown_for_missing_name():
         "confidence": 0.0,
         "reason": "Full name is missing.",
     }
+
+
+def test_azerbaijani_gendered_surname_suffixes_take_priority():
+    assert detect_gender("Arzu Məmmədov")["gender"] == "male"
+    assert detect_gender("Arzu Məmmədova")["gender"] == "female"
+    assert detect_gender("Xəyal Əliyev")["gender"] == "male"
+    assert detect_gender("Xəyal Əliyeva")["gender"] == "female"
+
+
+def test_azerbaijani_neutral_surname_suffixes_remain_context_dependent():
+    assert detect_gender("Arzu Məmmədzadə")["gender"] == "unknown"
+    assert detect_gender("Arzu Həsənli")["gender"] == "unknown"
+
+
+def test_expanded_name_pools_add_200_names_per_gender():
+    from app.parsing.gender_detector import ADDITIONAL_FEMALE_NAMES, ADDITIONAL_MALE_NAMES
+
+    assert len(ADDITIONAL_MALE_NAMES) == 200
+    assert len(ADDITIONAL_FEMALE_NAMES) == 200
+    assert ADDITIONAL_MALE_NAMES.isdisjoint(UNISEX_NAMES)
+    assert ADDITIONAL_FEMALE_NAMES.isdisjoint(UNISEX_NAMES)
+
+
+@pytest.mark.parametrize(
+    ("full_name", "expected"),
+    [
+        ("Ağahadi Həsənli", "male"),
+        ("Behbud Qasımzadə", "male"),
+        ("Gülarə Həsənli", "female"),
+        ("Rəqsanə Məmmədzadə", "female"),
+    ],
+)
+def test_expanded_name_pool_resolves_neutral_surnames(full_name, expected):
+    assert detect_gender(full_name)["gender"] == expected

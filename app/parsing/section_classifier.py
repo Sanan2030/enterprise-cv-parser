@@ -39,6 +39,7 @@ SECTION_DICTIONARY = {
         "career history",
         "career journey",
         "professional background",
+        "professional experience",
         "employment record",
         "work history",
         "iş təcrübəsi",
@@ -50,6 +51,8 @@ SECTION_DICTIONARY = {
     ],
     "education": [
         "education",
+        "education & certifications",
+        "education and certifications",
         "academic background",
         "qualifications",
         "təhsil",
@@ -59,6 +62,8 @@ SECTION_DICTIONARY = {
     ],
     "skills": [
         "skills",
+        "skills & tools",
+        "skills and tools",
         "technical skills",
         "core competencies",
         "expertise",
@@ -120,6 +125,7 @@ class SectionClassifier:
     def segment_document(self, blocks: list[LayoutBlock]) -> dict[str, list[LayoutBlock]]:
         segmented = {key: [] for key in ["header", *SECTION_DICTIONARY]}
         current = "header"
+        combined_education = False
         for block in blocks:
             for text in block.text.splitlines():
                 candidate = replace(block, text=text.strip())
@@ -129,8 +135,18 @@ class SectionClassifier:
                 section, score = self.classify_block(label if separator else candidate.text)
                 if section and (score == 1 or block.is_bold or block.font_size >= 12):
                     current = section
+                    combined_education = section == "education" and bool(
+                        re.search(r"(?i)certifications", label)
+                    )
                     if separator and content.strip():
                         segmented[current].append(replace(candidate, text=content.strip()))
                 else:
+                    # Combined headings often end with standalone training/certificates.
+                    # Keep degrees in education and route explicitly named credentials.
+                    if combined_education and re.search(
+                        r"(?i)\b(certificat\w*|training|professional scrum|PSPO|PSM|PMP)\b",
+                        candidate.text,
+                    ) and not re.search(r"(?i)\b(bachelor|master|bsc|msc|phd)\b", candidate.text):
+                        current = "certifications"
                     segmented[current].append(candidate)
         return segmented

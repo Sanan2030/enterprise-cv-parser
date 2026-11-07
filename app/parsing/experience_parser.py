@@ -92,6 +92,13 @@ class ExperienceParser:
                     )
                 else:
                     responsibilities.append(clean.lstrip("•*- "))
+            # Both "Title | Company" and "Company | Title" are common.
+            # Reverse only when the second field is clearly a role and the first is not.
+            role_pattern = r"(?i)\b(analyst|developer|engineer|manager|owner|designer|consultant|specialist)\b"
+            if len(header) >= 2 and re.search(role_pattern, header[1]) and not re.search(
+                role_pattern, header[0]
+            ):
+                header[0], header[1] = header[1], header[0]
             result.append(
                 WorkExperience(
                     job_title=labeled(text, "position", "job title") or (header[0] if header else None),

@@ -46,6 +46,17 @@ def test_bullet_never_becomes_company(block):
     assert job.responsibilities == ["Built systems"]
 
 
+def test_company_first_job_header(block):
+    job = ExperienceParser().parse([
+        block("Example Group | Product Development & Implementation Business Analyst | Jul 2026 - Present"),
+        block("- Prepare user stories and acceptance criteria", 70),
+    ])[0]
+    assert job.company == "Example Group"
+    assert job.job_title == "Product Development & Implementation Business Analyst"
+    assert job.start_date == "2026-07"
+    assert job.current_position
+
+
 def test_two_degrees(block):
     education = EducationParser().parse(
         [
